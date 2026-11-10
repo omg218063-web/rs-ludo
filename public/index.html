@@ -240,8 +240,8 @@ $('go').onclick=()=>s.emit('pstart',G);
 $('lk').onclick=()=>{
  const u=location.origin+'?party='+PT.code;
  if(navigator.share)navigator.share({title:'RS Ludo',url:u});else prompt('কপি করুন',u)};
-document.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{
- G=b.dataset.g;
+$('rc').onclick=()=>s.emit('prace');
+s.on('goto',u=>location.href=u);
  document.querySelectorAll('[data-g]').forEach(x=>x.classList.toggle('on',x==b));
  $('go').textContent='⭐ START ('+(G=='snake'?'সাপ-লুডু':'লুডু')+')'});
 $('rc').onclick=()=>location.href='/race.html';
