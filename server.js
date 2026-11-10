@@ -1,3 +1,4 @@
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -5,75 +6,148 @@ const { MongoClient } = require('mongodb');
 
 const app = express();
 const srv = http.createServer(app);
+
 const io = new Server(srv, {
-  cors: { origin: true, credentials: true }
+  cors: {
+    origin: true,
+    credentials: true
+  }
 });
 
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static('public'));
 
-app.get('/health', (_req, res) =>
-  res.json({ ok: true, service: 'RS LUDO' })
-);
+const PORT = Number(process.env.PORT) || 3000;
 
-const rooms = Object.create(null);
-const parties = Object.create(null);
-const gameRooms = Object.create(null);
-const online = new Map();
+const MONGO_URI =
+  process.env.MONGODB_URI || process.env.MONGO_URL;
 
-const SEATS = [0, 2, 1, 3];
-const SAFE = [0, 8, 13, 21, 26, 34, 39, 47];
-const FEES = [0, 50, 100, 200, 500];
-const RP = [0, 100, 300, 500, 800, 1200, 2000, 5000];
+const DB_NAME =
+  process.env.MONGO_DB_NAME || 'rswallet';
 
-const mem = new Map();
-let col = null;
 let mongoClient = null;
+let db = null;
+let users = null;
+let dbConnected = false;
 
-const mongoUri =
-  process.env.MONGO_URL || process.env.MONGODB_URI;
+/* =================================
+   MONGODB CONNECTION
+================================= */
 
-const dbName = process.env.MONGO_DB_NAME || 'rsludo';
+const dbReady = (async () => {
+  try {
+    if (!MONGO_URI) {
+      throw new Error('MongoDB URL is missing');
+    }
 
-const dbReady = mongoUri
-  ? (async () => {
-      try {
-        mongoClient = new MongoClient(mongoUri, {
-          serverSelectionTimeoutMS: 10000
-        });
+    mongoClient = new MongoClient(MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000
+    });
 
-        await mongoClient.connect();
+    await mongoClient.connect();
 
-        col = mongoClient.db(dbName).collection('users');
+    db = mongoClient.db(DB_NAME);
+    users = db.collection('users');
 
-        await col.createIndex({ name: 1 });
+    await users.createIndex({ name: 1 });
 
-        console.log(`MongoDB connected: ${dbName}.users`);
-      } catch (err) {
-        console.error('MongoDB connection failed:', err.message);
-        throw err;
-      }
-    })()
-  : Promise.resolve();
+    dbConnected = true;
+
+    console.log('MongoDB connected successfully');
+    console.log('Database:', DB_NAME);
+
+    return true;
+
+  } catch (error) {
+    dbConnected = false;
+    console.error('MongoDB connection failed:', error.message);
+
+    if (mongoClient) {
+      await mongoClient.close().catch(() => {});
+      mongoClient = null;
+    }
+
+    return false;
+  }
+})();
 
 async function getU(id) {
   await dbReady;
-  return col
-    ? col.findOne({ _id: String(id) })
-    : mem.get(String(id));
+
+  if (!dbConnected || !users) {
+    throw new Error('MongoDB is not connected');
+  }
+
+  return users.findOne({
+    _id: String(id)
+  });
 }
 
 async function putU(user) {
   await dbReady;
 
-  if (col) {
-    await col.replaceOne(
-      { _id: user._id },
-      user,
-      { upsert: true }
-    );
-  } else {
-    mem.set(user._id, user);
+  if (!dbConnected || !users) {
+    throw new Error('MongoDB is not connected');
   }
+
+  await users.replaceOne(
+    { _id: user._id },
+    user,
+    { upsert: true }
+  );
+}
+
+/* =================================
+   HEALTH CHECK
+================================= */
+
+app.get('/health', (_req, res) => {
+  res.status(200).json({
+    ok: true,
+    service: 'RS LUDO',
+    server: 'online',
+    mongodb: dbConnected ? 'connected' : 'disconnected'
+  });
+});
+
+/* =================================
+   GAME DATA
+================================= */
+
+const rooms = Object.create(null);
+const parties = Object.create(null);
+const gameRooms = Object.create(null);
+
+const online = new Map();
+
+const SEATS = [0, 2, 1, 3];
+
+const SAFE = [0, 8, 13, 21, 26, 34, 39, 47];
+
+const FEES = [0, 50, 100, 200, 500];
+
+const RP = [0, 100, 300, 500, 800, 1200, 2000, 5000];
+
+const GAME_RULES = {
+  carrom: { min: 2, max: 4 },
+  racing: { min: 2, max: 6 },
+  battle: { min: 2, max: 16 }
+};
+
+/* =================================
+   COMMON FUNCTIONS
+================================= */
+
+function makeCode(len = 5) {
+  return Math.random()
+    .toString(36)
+    .slice(2, 2 + len)
+    .toUpperCase();
+}
+
+function emitRoom(room, event, data) {
+  io.to(room).emit(event, data);
 }
 
 function pu(u) {
@@ -100,93 +174,87 @@ function ab(seat, p) {
   return (seat * 13 + p) % 52;
 }
 
-function legal(pl, dice) {
-  return pl.pieces
+function legal(player, dice) {
+  return player.pieces
     .map((_, i) => i)
     .filter(i =>
-      pl.pieces[i] < 0
+      player.pieces[i] < 0
         ? dice === 6
-        : pl.pieces[i] + dice <= 56
+        : player.pieces[i] + dice <= 56
     );
 }
 
-function next(r) {
-  let n = 0;
+function next(room) {
+  let count = 0;
 
   do {
-    r.turn = (r.turn + 1) % r.players.length;
-    n++;
-  } while (r.players[r.turn].left && n < 9);
+    room.turn = (room.turn + 1) % room.players.length;
+    count++;
+  } while (
+    room.players[room.turn].left &&
+    count < 9
+  );
 
-  r.phase = 'roll';
-  r.dice = 0;
+  room.phase = 'roll';
+  room.dice = 0;
 }
 
-function safeEmit(room, event, data) {
-  io.to(room).emit(event, data);
-}
-
-function makeCode(len = 5) {
-  return Math.random()
-    .toString(36)
-    .slice(2, 2 + len)
-    .toUpperCase();
-}
-
-function pubP(p) {
-  safeEmit('p' + p.code, 'party', {
-    code: p.code,
-    host: p.host,
-    fee: p.fee,
-    m: p.m
-  });
-}
+/* =================================
+   FRIEND SYSTEM
+================================= */
 
 async function sendF(uid) {
   const sid = online.get(uid);
   if (!sid) return;
 
-  const u = await getU(uid);
-  if (!u) return;
+  const user = await getU(uid);
+  if (!user) return;
 
-  const list = async arr => {
-    const out = [];
+  async function list(ids) {
+    const result = [];
 
-    for (const id of arr || []) {
+    for (const id of ids || []) {
       const friend = await getU(id);
 
       if (friend) {
-        out.push({
+        result.push({
           ...pi(friend),
           online: online.has(id)
         });
       }
     }
 
-    return out;
-  };
+    return result;
+  }
 
   io.to(sid).emit('friends', {
-    friends: await list(u.friends),
-    reqs: await list(u.reqs)
+    friends: await list(user.friends),
+    reqs: await list(user.reqs)
   });
 }
 
-async function presence(u) {
-  for (const fid of u.friends || []) {
-    await sendF(fid);
+async function presence(user) {
+  for (const id of user.friends || []) {
+    await sendF(id);
   }
 }
 
 /* =================================
-   NEW MULTIPLAYER GAMES
+   PARTY SYSTEM
 ================================= */
 
-const GAME_RULES = {
-  carrom: { min: 2, max: 4 },
-  racing: { min: 2, max: 6 },
-  battle: { min: 2, max: 16 }
-};
+function pubP(party) {
+  emitRoom('p' + party.code, 'party', {
+    code: party.code,
+    host: party.host,
+    fee: party.fee,
+    m: party.m
+  });
+}
+
+/* =================================
+   OTHER GAME ROOMS
+================================= */
 
 function publicGameRoom(room) {
   return {
@@ -195,6 +263,8 @@ function publicGameRoom(room) {
     host: room.host,
     status: room.status,
     max: room.max,
+    map: room.map,
+    createdAt: room.createdAt,
 
     players: room.players.map(p => ({
       id: p.uid,
@@ -205,54 +275,23 @@ function publicGameRoom(room) {
       score: p.score || 0,
       lap: p.lap || 0,
       health: p.health ?? 100
-    })),
-
-    map: room.map,
-    createdAt: room.createdAt
+    }))
   };
 }
 
 function emitGameRoom(room) {
-  safeEmit(
+  emitRoom(
     'g' + room.code,
     'game:room',
     publicGameRoom(room)
   );
 }
 
-function leaveGameRoom(socket) {
-  const code = socket.data.gameRoom;
-
-  if (!code || !gameRooms[code]) {
-    delete socket.data.gameRoom;
-    return;
-  }
-
-  const room = gameRooms[code];
-
-  room.players = room.players.filter(
-    p => p.sid !== socket.id
-  );
-
-  socket.leave('g' + code);
-  delete socket.data.gameRoom;
-
-  if (!room.players.length) {
-    delete gameRooms[code];
-  } else {
-    if (!room.players.some(p => p.uid === room.host)) {
-      room.host = room.players[0].uid;
-    }
-
-    emitGameRoom(room);
-  }
-}
-
 function createGameRoom(game, user, options = {}) {
   const rules = GAME_RULES[game];
   const code = makeCode(6);
 
-  const room = gameRooms[code] = {
+  return gameRooms[code] = {
     code,
     game,
     host: user._id,
@@ -266,18 +305,14 @@ function createGameRoom(game, user, options = {}) {
       )
     ),
 
-    map:
-      typeof options.map === 'string'
-        ? options.map.slice(0, 40)
-        : 'default',
+    map: typeof options.map === 'string'
+      ? options.map.slice(0, 40)
+      : 'default',
 
     createdAt: Date.now(),
-    turn: 0,
-    state: {},
-    players: []
+    players: [],
+    state: {}
   };
-
-  return room;
 }
 
 /* =================================
@@ -286,118 +321,59 @@ function createGameRoom(game, user, options = {}) {
 
 io.on('connection', socket => {
 
-  const R = () => rooms[socket.data.code];
+  console.log('Player connected:', socket.id);
 
-  const pub = room =>
-    safeEmit(room.code, 'state', room);
+  const on = (event, handler) => {
+    socket.on(event, (...args) => {
+      Promise.resolve()
+        .then(() => handler(...args))
+        .catch(error => {
+          console.error(
+            `Socket event ${event}:`,
+            error.message
+          );
 
-  const U = async () =>
-    socket.data.uid
+          socket.emit(
+            'err',
+            'সার্ভারে সমস্যা হয়েছে। আবার চেষ্টা করুন।'
+          );
+        });
+    });
+  };
+
+  const U = async () => {
+    return socket.data.uid
       ? getU(socket.data.uid)
       : null;
-
-  const sendMe = async () => {
-    const u = await U();
-    if (u) socket.emit('me', pu(u));
   };
 
   const requireUser = async () => {
-    const u = await U();
+    const user = await U();
 
-    if (!u) {
-      socket.emit('err', 'আগে অ্যাকাউন্টে লগইন করুন');
+    if (!user) {
+      socket.emit('err', 'আগে লগইন করুন');
     }
 
-    return u;
+    return user;
+  };
+
+  const sendMe = async () => {
+    const user = await U();
+
+    if (user) {
+      socket.emit('me', pu(user));
+    }
+  };
+
+  const pub = room => {
+    emitRoom(room.code, 'state', room);
   };
 
   /* =================================
-     PARTY SYSTEM
+     LOGIN / REGISTRATION
   ================================= */
 
-  const leaveP = () => {
-    const code = socket.data.pcode;
-    const p = parties[code];
-
-    if (!p) return;
-
-    p.m = p.m.filter(
-      x => x.sid !== socket.id
-    );
-
-    socket.leave('p' + code);
-
-    delete socket.data.pcode;
-
-    socket.emit('party', null);
-
-    if (!p.m.length) {
-      delete parties[code];
-    } else {
-      if (!p.m.some(x => x.uid === p.host)) {
-        p.host = p.m[0].uid;
-      }
-
-      pubP(p);
-    }
-  };
-
-  const joinP = (code, user) => {
-    const p = parties[code];
-
-    if (!p) {
-      return socket.emit(
-        'err',
-        'পার্টি পাওয়া যায়নি'
-      );
-    }
-
-    if (socket.data.pcode === code) return;
-
-    if (p.m.length >= 4) {
-      return socket.emit('err', 'পার্টি ভর্তি');
-    }
-
-    leaveP();
-
-    p.m.push({
-      sid: socket.id,
-      uid: user._id,
-      ...pi(user)
-    });
-
-    socket.join('p' + code);
-    socket.data.pcode = code;
-
-    pubP(p);
-  };
-
-  const mkP = user => {
-    const code = makeCode(4);
-
-    parties[code] = {
-      code,
-      host: user._id,
-      fee: 0,
-      m: []
-    };
-
-    joinP(code, user);
-  };
-
-  const upd = user => {
-    const p = parties[socket.data.pcode];
-
-    const member = p &&
-      p.m.find(x => x.uid === user._id);
-
-    if (member) {
-      Object.assign(member, pi(user));
-      pubP(p);
-    }
-  };
-
-  const enter = async user => {
+  async function enter(user) {
     socket.data.uid = user._id;
 
     online.set(user._id, socket.id);
@@ -405,86 +381,69 @@ io.on('connection', socket => {
     socket.emit('me', pu(user));
 
     if (!socket.data.pcode) {
-      mkP(user);
+      makeParty(user);
     }
 
     await sendF(user._id);
     await presence(user);
-  };
+  }
+
+  on('register', async rawName => {
+    const name = String(rawName || '')
+      .replace(/[<>&"'`]/g, '')
+      .trim()
+      .slice(0, 12);
+
+    if (!name) {
+      return socket.emit('err', 'নাম দিন');
+    }
+
+    let id;
+
+    do {
+      id = String(
+        100000 + Math.floor(Math.random() * 900000)
+      );
+    } while (await getU(id));
+
+    const user = {
+      _id: id,
+      name,
+      pic: '',
+      coins: 1000,
+      bonus: 0,
+      ring: 0,
+      rings: [0],
+      friends: [],
+      reqs: [],
+      createdAt: Date.now()
+    };
+
+    await putU(user);
+    await enter(user);
+  });
+
+  on('login', async rawId => {
+    const id = String(rawId || '').trim();
+
+    if (!/^\d{6}$/.test(id)) {
+      return socket.emit('badid');
+    }
+
+    const user = await getU(id);
+
+    if (!user) {
+      return socket.emit('badid');
+    }
+
+    await enter(user);
+  });
 
   /* =================================
-     ACCOUNT
+     PROFILE
   ================================= */
 
-  socket.on('register', async rawName => {
-    try {
-      await dbReady;
-
-      const name = String(rawName || '')
-        .replace(/[<>&"'`]/g, '')
-        .trim()
-        .slice(0, 12);
-
-      if (!name) {
-        return socket.emit('err', 'নাম দিন');
-      }
-
-      let id;
-
-      do {
-        id = String(
-          100000 +
-          Math.floor(Math.random() * 900000)
-        );
-      } while (await getU(id));
-
-      const user = {
-        _id: id,
-        name,
-        pic: '',
-        coins: 1000,
-        bonus: 0,
-        ring: 0,
-        rings: [0],
-        friends: [],
-        reqs: [],
-        createdAt: Date.now()
-      };
-
-      await putU(user);
-      await enter(user);
-
-    } catch (err) {
-      console.error('register:', err.message);
-
-      socket.emit(
-        'err',
-        'অ্যাকাউন্ট তৈরি করা যায়নি। সার্ভার লগ দেখুন।'
-      );
-    }
-  });
-
-  socket.on('login', async rawId => {
-    try {
-      await dbReady;
-
-      const user = await getU(
-        String(rawId || '').trim()
-      );
-
-      if (!user) {
-        return socket.emit('badid');
-      }
-
-      await enter(user);
-
-    } catch (err) {
-      console.error('login:', err.message);
-      socket.emit('err', 'লগইন করা যায়নি');
-    }
-  });
-
-  socket.on('pic', async data => {
+  on('pic', async data => {
     const user = await requireUser();
 
     if (
@@ -498,25 +457,21 @@ io.on('connection', socket => {
 
     await putU(user);
     await sendMe();
-    upd(user);
   });
 
-  socket.on('bonus', async () => {
+  on('bonus', async () => {
     const user = await requireUser();
     if (!user) return;
 
     if (user.coins >= 100) {
-      return socket.emit(
-        'err',
-        'কয়েন ১০০ এর কম হলে বোনাস পাবেন'
-      );
+      return socket.emit('err', 'কয়েন ১০০ এর কম হলে বোনাস পাবেন');
     }
 
-    if (Date.now() - (user.bonus || 0) < 86400000) {
-      return socket.emit(
-        'err',
-        'বোনাস ২৪ ঘণ্টায় একবার'
-      );
+    if (
+      Date.now() - (user.bonus || 0) <
+      86400000
+    ) {
+      return socket.emit('err', '২৪ ঘণ্টায় একবার বোনাস পাবেন');
     }
 
     user.coins += 200;
@@ -525,10 +480,10 @@ io.on('connection', socket => {
     await putU(user);
     await sendMe();
 
-    socket.emit('err', '🎁 ২০০ কয়েন পেয়েছেন!');
+    socket.emit('err', '🎁 ২০০ কয়েন পেয়েছেন!');
   });
 
-  socket.on('buy', async rawIndex => {
+  on('buy', async rawIndex => {
     const user = await requireUser();
     const index = Number(rawIndex);
 
@@ -544,7 +499,7 @@ io.on('connection', socket => {
     if (user.rings.includes(index)) return;
 
     if (user.coins < RP[index]) {
-      return socket.emit('err', 'কয়েন কম');
+      return socket.emit('err', 'কয়েন কম');
     }
 
     user.coins -= RP[index];
@@ -553,12 +508,11 @@ io.on('connection', socket => {
 
     await putU(user);
     await sendMe();
-    upd(user);
 
-    socket.emit('err', '✅ রিং কেনা হয়েছে!');
+    socket.emit('err', '✅ রিং কেনা হয়েছে!');
   });
 
-  socket.on('setring', async rawIndex => {
+  on('setring', async rawIndex => {
     const user = await requireUser();
     const index = Number(rawIndex);
 
@@ -571,46 +525,142 @@ io.on('connection', socket => {
 
     await putU(user);
     await sendMe();
-    upd(user);
+  });
+
+  /* =================================
+     PARTY FUNCTIONS
+  ================================= */
+
+  function leaveP() {
+    const code = socket.data.pcode;
+    const party = parties[code];
+
+    if (!party) return;
+
+    party.m = party.m.filter(
+      p => p.sid !== socket.id
+    );
+
+    socket.leave('p' + code);
+    delete socket.data.pcode;
+
+    socket.emit('party', null);
+
+    if (!party.m.length) {
+      delete parties[code];
+    } else {
+      if (!party.m.some(p => p.uid === party.host)) {
+        party.host = party.m[0].uid;
+      }
+
+      pubP(party);
+    }
+  }
+
+  function joinP(code, user) {
+    const party = parties[code];
+
+    if (!party) {
+      return socket.emit('err', 'পার্টি পাওয়া যায়নি');
+    }
+
+    if (party.m.some(p => p.uid === user._id)) {
+      return;
+    }
+
+    if (party.m.length >= 4) {
+      return socket.emit('err', 'পার্টি ভর্তি');
+    }
+
+    leaveP();
+
+    party.m.push({
+      sid: socket.id,
+      uid: user._id,
+      ...pi(user)
+    });
+
+    socket.join('p' + code);
+    socket.data.pcode = code;
+
+    pubP(party);
+  }
+
+  function makeParty(user) {
+    const code = makeCode(4);
+
+    parties[code] = {
+      code,
+      host: user._id,
+      fee: 0,
+      m: []
+    };
+
+    joinP(code, user);
+  }
+
+  on('joinparty', async rawCode => {
+    const user = await requireUser();
+    if (!user) return;
+
+    joinP(
+      String(rawCode || '').toUpperCase(),
+      user
+    );
+  });
+
+  on('acceptinv', async rawCode => {
+    const user = await requireUser();
+    if (!user) return;
+
+    joinP(
+      String(rawCode || '').toUpperCase(),
+      user
+    );
+  });
+
+  on('pfee', fee => {
+    const party = parties[socket.data.pcode];
+
+    if (
+      !party ||
+      party.host !== socket.data.uid ||
+      !FEES.includes(Number(fee))
+    ) return;
+
+    party.fee = Number(fee);
+    pubP(party);
   });
 
   /* =================================
      FRIENDS
   ================================= */
 
-  socket.on('addf', async rawId => {
+  on('addf', async rawId => {
     const user = await requireUser();
     if (!user) return;
 
-    const id = String(rawId || '').trim();
-    const target = await getU(id);
+    const target = await getU(
+      String(rawId || '').trim()
+    );
 
     if (!target) {
-      return socket.emit(
-        'err',
-        'এই আইডি পাওয়া যায়নি'
-      );
+      return socket.emit('err', 'আইডি পাওয়া যায়নি');
     }
 
     if (target._id === user._id) {
-      return socket.emit(
-        'err',
-        'নিজেকে অ্যাড করা যায় না'
-      );
+      return socket.emit('err', 'নিজেকে অ্যাড করা যাবে না');
     }
 
-    target.reqs = target.reqs || [];
     user.friends = user.friends || [];
+    target.reqs = target.reqs || [];
 
     if (user.friends.includes(target._id)) {
       return socket.emit('err', 'আগেই বন্ধু');
     }
 
     if (target.reqs.includes(user._id)) {
-      return socket.emit(
-        'err',
-        'রিকোয়েস্ট আগেই পাঠানো'
-      );
+      return socket.emit('err', 'রিকোয়েস্ট আগেই পাঠানো হয়েছে');
     }
 
     target.reqs.push(user._id);
@@ -618,24 +668,22 @@ io.on('connection', socket => {
     await putU(target);
     await sendF(target._id);
 
-    socket.emit(
-      'err',
-      '📨 রিকোয়েস্ট পাঠানো হয়েছে'
-    );
+    socket.emit('err', 'রিকোয়েস্ট পাঠানো হয়েছে');
   });
 
-  socket.on('accept', async rawId => {
+  on('accept', async rawId => {
     const user = await requireUser();
+    if (!user) return;
+
     const target = await getU(String(rawId));
 
     if (
-      !user ||
       !target ||
       !(user.reqs || []).includes(target._id)
     ) return;
 
     user.reqs = user.reqs.filter(
-      x => x !== target._id
+      id => id !== target._id
     );
 
     user.friends = user.friends || [];
@@ -656,129 +704,89 @@ io.on('connection', socket => {
     await sendF(target._id);
   });
 
-  socket.on('decl', async rawId => {
+  on('decl', async rawId => {
     const user = await requireUser();
     if (!user) return;
 
     user.reqs = (user.reqs || []).filter(
-      x => x !== String(rawId)
+      id => id !== String(rawId)
     );
 
     await putU(user);
     await sendF(user._id);
   });
 
-  socket.on('invite', async rawFriendId => {
+  on('invite', async rawId => {
     const user = await requireUser();
+    if (!user) return;
 
-    const friendId = String(rawFriendId);
+    const friendId = String(rawId);
     const sid = online.get(friendId);
 
     if (
-      !user ||
       !sid ||
       !(user.friends || []).includes(friendId)
     ) return;
 
-    if (!socket.data.pcode) {
-      mkP(user);
+    const code = socket.data.pcode;
+
+    if (!code || !parties[code]) {
+      return socket.emit('err', 'আগে পার্টি তৈরি করুন');
     }
 
     io.to(sid).emit('invite', {
       from: user.name,
-      code: socket.data.pcode
+      code
     });
-
-    socket.emit(
-      'err',
-      '📨 ইনভাইট পাঠানো হয়েছে'
-    );
-  });
-
-  socket.on('acceptinv', async code => {
-    const user = await requireUser();
-
-    if (user) {
-      joinP(String(code).toUpperCase(), user);
-    }
-  });
-
-  socket.on('joinparty', async code => {
-    const user = await requireUser();
-
-    if (user) {
-      joinP(String(code).toUpperCase(), user);
-    }
-  });
-
-  socket.on('pfee', fee => {
-    const p = parties[socket.data.pcode];
-
-    if (
-      !p ||
-      !FEES.includes(Number(fee)) ||
-      p.host !== socket.data.uid
-    ) return;
-
-    p.fee = Number(fee);
-    pubP(p);
   });
 
   /* =================================
      LUDO START
   ================================= */
 
-  socket.on('pstart', async () => {
-    const p = parties[socket.data.pcode];
+  on('pstart', async () => {
+    const party = parties[socket.data.pcode];
 
     if (
-      !p ||
-      p.host !== socket.data.uid ||
+      !party ||
+      party.host !== socket.data.uid ||
       socket.data.code
     ) return;
 
-    if (p.m.length < 2) {
-      return socket.emit(
-        'err',
-        'কমপক্ষে ২ জন লাগবে'
-      );
+    if (party.m.length < 2) {
+      return socket.emit('err', 'কমপক্ষে ২ জন লাগবে');
     }
 
-    const users = [];
+    const playerData = [];
 
-    for (const m of p.m) {
-      const user = await getU(m.uid);
+    for (const member of party.m) {
+      const user = await getU(member.uid);
 
-      if (!user || user.coins < p.fee) {
-        return socket.emit(
-          'err',
-          m.name + ' এর কয়েন কম'
-        );
+      if (!user || user.coins < party.fee) {
+        return socket.emit('err', member.name + ' এর কয়েন কম');
       }
 
-      users.push(user);
+      playerData.push({ user, member });
     }
 
     const code = makeCode(4);
 
     const room = rooms[code] = {
       code,
-      fee: p.fee,
-      pot: p.fee * users.length,
+      fee: party.fee,
+      pot: party.fee * playerData.length,
       players: [],
       turn: 0,
       dice: 0,
       phase: 'roll',
-      msg: '',
+      msg: 'খেলা শুরু',
       winner: null
     };
 
-    for (let k = 0; k < users.length; k++) {
-      const user = users[k];
-      const member = p.m[k];
+    for (let i = 0; i < playerData.length; i++) {
+      const { user, member } = playerData[i];
 
-      user.coins -= p.fee;
-
+      user.coins -= party.fee;
       await putU(user);
 
       room.players.push({
@@ -786,7 +794,7 @@ io.on('connection', socket => {
         uid: user._id,
         ...pi(user),
         coins: user.coins,
-        seat: SEATS[k],
+        seat: SEATS[i],
         pieces: [-1, -1, -1, -1]
       });
 
@@ -800,8 +808,7 @@ io.on('connection', socket => {
       }
     }
 
-    room.msg =
-      'খেলা শুরু! ' +
+    room.msg = 'খেলা শুরু! ' +
       room.players[0].name +
       ' আগে ফেলুক';
 
@@ -809,44 +816,11 @@ io.on('connection', socket => {
   });
 
   /* =================================
-     VOICE CHAT SIGNALING
-  ================================= */
-
-  socket.on('sig', (to, data) => {
-    if (
-      typeof to !== 'string' ||
-      !data ||
-      typeof data !== 'object'
-    ) return;
-
-    const target =
-      io.sockets.sockets.get(to);
-
-    if (!target) return;
-
-    const sameParty =
-      socket.data.pcode &&
-      socket.data.pcode === target.data.pcode;
-
-    const sameLudo =
-      socket.data.code &&
-      socket.data.code === target.data.code;
-
-    const sameGame =
-      socket.data.gameRoom &&
-      socket.data.gameRoom === target.data.gameRoom;
-
-    if (sameParty || sameLudo || sameGame) {
-      target.emit('sig', socket.id, data);
-    }
-  });
-
-  /* =================================
      LUDO DICE
   ================================= */
 
-  socket.on('roll', () => {
-    const room = R();
+  on('roll', () => {
+    const room = rooms[socket.data.code];
 
     if (
       !room ||
@@ -868,29 +842,16 @@ io.on('connection', socket => {
         room.phase !== 'rolling'
       ) return;
 
-      const dice =
-        1 + Math.floor(Math.random() * 6);
+      const dice = 1 + Math.floor(Math.random() * 6);
 
       room.dice = dice;
 
       if (legal(player, dice).length) {
         room.phase = 'move';
-
-        room.msg =
-          player.name +
-          ' ' +
-          dice +
-          ' ফেলল' +
-          (dice === 6 ? ' 🔥 ছক্কা!' : '');
-
+        room.msg = player.name + ' ' + dice + ' ফেলল';
       } else {
         room.phase = 'wait';
-
-        room.msg =
-          player.name +
-          ' ' +
-          dice +
-          ' ফেলল, চাল নেই 😅';
+        room.msg = player.name + ' এর চাল নেই';
 
         setTimeout(() => {
           if (
@@ -898,11 +859,7 @@ io.on('connection', socket => {
             room.phase === 'wait'
           ) {
             next(room);
-
-            room.msg =
-              room.players[room.turn].name +
-              ' এর পালা';
-
+            room.msg = room.players[room.turn].name + ' এর পালা';
             pub(room);
           }
         }, 1500);
@@ -912,31 +869,8 @@ io.on('connection', socket => {
     }, 800);
   });
 
-  async function payout(room, player) {
-    if (!room.pot) return;
-
-    const user = await getU(player.uid);
-    if (!user) return;
-
-    user.coins += room.pot;
-
-    await putU(user);
-
-    player.coins = user.coins;
-
-    room.msg =
-      '🏆 ' +
-      player.name +
-      ' জিতেছে! 🪙+' +
-      room.pot;
-
-    io.to(player.id).emit('me', pu(user));
-
-    pub(room);
-  }
-
-  socket.on('move', rawIndex => {
-    const room = R();
+  on('move', async rawIndex => {
+    const room = rooms[socket.data.code];
     const index = Number(rawIndex);
 
     if (
@@ -954,87 +888,83 @@ io.on('connection', socket => {
       !legal(player, dice).includes(index)
     ) return;
 
-    const position =
-      player.pieces[index] < 0
-        ? 0
-        : player.pieces[index] + dice;
+    const position = player.pieces[index] < 0
+      ? 0
+      : player.pieces[index] + dice;
 
     player.pieces[index] = position;
 
-    let captured = null;
+    let captured = false;
 
     if (
       position <= 50 &&
       !SAFE.includes(ab(player.seat, position))
     ) {
-      room.players.forEach(other => {
-        if (other !== player) {
-          other.pieces.forEach((q, k) => {
-            if (
-              q >= 0 &&
-              q <= 50 &&
-              ab(other.seat, q) ===
-                ab(player.seat, position)
-            ) {
-              other.pieces[k] = -1;
-              captured = other.name;
-            }
-          });
-        }
-      });
+      for (const other of room.players) {
+        if (other === player) continue;
+
+        other.pieces.forEach((q, k) => {
+          if (
+            q >= 0 &&
+            q <= 50 &&
+            ab(other.seat, q) === ab(player.seat, position)
+          ) {
+            other.pieces[k] = -1;
+            captured = true;
+          }
+        });
+      }
     }
 
     if (player.pieces.every(p => p === 56)) {
       room.phase = 'over';
       room.winner = player.name;
+      room.msg = '🏆 ' + player.name + ' জিতেছে!';
 
-      room.msg =
-        '🏆 ' + player.name + ' জিতেছে!';
+      if (room.pot > 0) {
+        const user = await getU(player.uid);
+
+        if (user) {
+          user.coins += room.pot;
+          await putU(user);
+          player.coins = user.coins;
+
+          io.to(player.id).emit('me', pu(user));
+        }
+      }
 
       pub(room);
-      payout(room, player);
-
       return;
     }
 
     if (dice === 6 || captured) {
       room.phase = 'roll';
       room.dice = 0;
-
       room.msg = captured
-        ? '😂 ' +
-          captured +
-          ' এর গুটি কাটা পড়ল! ' +
-          player.name +
-          ' আবার ফেলবে'
+        ? 'গুটি কাটা হয়েছে! আবার ফেলুন'
         : player.name + ' আবার ফেলবে';
-
     } else {
       next(room);
-
-      room.msg =
-        room.players[room.turn].name +
-        ' এর পালা';
+      room.msg = room.players[room.turn].name + ' এর পালা';
     }
 
     pub(room);
   });
 
-  const leaveLudo = () => {
-    const room = R();
-
+  on('lgame', () => {
+    const room = rooms[socket.data.code];
     if (!room) return;
 
-    const index = room.players.findIndex(
+    const player = room.players.find(
       p => p.id === socket.id
     );
 
     socket.leave(room.code);
     delete socket.data.code;
 
-    if (index < 0) return;
+    if (!player) return;
 
-    room.players[index].left = true;
+    player.left = true;
 
     if (room.players.every(p => p.left)) {
       delete rooms[room.code];
@@ -1043,47 +973,57 @@ io.on('connection', socket => {
 
     if (
       room.phase !== 'over' &&
-      room.turn === index
+      room.players[room.turn].id === socket.id
     ) {
       next(room);
     }
 
-    room.msg = 'একজন বের হয়ে গেছে';
-
+    room.msg = 'একজন খেলোয়াড় বের হয়ে গেছে';
     pub(room);
-  };
-
-  socket.on('lgame', leaveLudo);
+  });
 
   /* =================================
-     CREATE NEW GAME ROOM
-     carrom / racing / battle
+     OTHER GAMES
   ================================= */
 
-  socket.on('game:create', async (game, options = {}) => {
-    const user = await requireUser();
+  function leaveGameRoom() {
+    const code = socket.data.gameRoom;
+    const room = gameRooms[code];
 
-    if (!user) return;
-
-    if (
-      !Object.prototype.hasOwnProperty.call(
-        GAME_RULES,
-        game
-      )
-    ) {
-      return socket.emit(
-        'err',
-        'এই গেমটি পাওয়া যায়নি'
-      );
+    if (!room) {
+      delete socket.data.gameRoom;
+      return;
     }
 
-    leaveGameRoom(socket);
-
-    const room = createGameRoom(
-      game,
-      user,
-      options
+    room.players = room.players.filter(
+      p => p.sid !== socket.id
     );
+
+    socket.leave('g' + code);
+    delete socket.data.gameRoom;
+
+    if (!room.players.length) {
+      delete gameRooms[code];
+    } else {
+      if (!room.players.some(p => p.uid === room.host)) {
+        room.host = room.players[0].uid;
+      }
+
+      emitGameRoom(room);
+    }
+  }
+
+  on('game:create', async (game, options = {}) => {
+    const user = await requireUser();
+    if (!user) return;
+
+    if (!GAME_RULES[game]) {
+      return socket.emit('err', 'গেম পাওয়া যায়নি');
+    }
+
+    leaveGameRoom();
+
+    const room = createGameRoom(game, user, options);
 
     room.players.push({
       sid: socket.id,
@@ -1103,57 +1043,34 @@ io.on('connection', socket => {
     socket.join('g' + room.code);
     socket.data.gameRoom = room.code;
 
-    socket.emit(
-      'game:created',
-      publicGameRoom(room)
-    );
-
+    socket.emit('game:created', publicGameRoom(room));
     emitGameRoom(room);
   });
 
-  /* =================================
-     JOIN GAME ROOM
-  ================================= */
-
-  socket.on('game:join', async rawCode => {
+  on('game:join', async rawCode => {
     const user = await requireUser();
-
     if (!user) return;
 
-    const code = String(rawCode || '')
-      .trim()
-      .toUpperCase();
-
+    const code = String(rawCode || '').trim().toUpperCase();
     const room = gameRooms[code];
 
     if (!room) {
-      return socket.emit(
-        'err',
-        'গেম রুম পাওয়া যায়নি'
-      );
+      return socket.emit('err', 'গেম রুম পাওয়া যায়নি');
     }
 
     if (room.status !== 'lobby') {
-      return socket.emit(
-        'err',
-        'গেম ইতিমধ্যে শুরু হয়েছে'
-      );
+      return socket.emit('err', 'গেম শুরু হয়ে গেছে');
     }
 
     if (room.players.length >= room.max) {
       return socket.emit('err', 'রুম ভর্তি');
     }
 
-    if (
-      room.players.some(p => p.uid === user._id)
-    ) {
-      return socket.emit(
-        'err',
-        'তুমি ইতিমধ্যে এই রুমে আছ'
-      );
+    if (room.players.some(p => p.uid === user._id)) {
+      return socket.emit('err', 'তুমি আগে থেকেই রুমে আছ');
     }
 
-    leaveGameRoom(socket);
+    leaveGameRoom();
 
     room.players.push({
       sid: socket.id,
@@ -1173,30 +1090,15 @@ io.on('connection', socket => {
     socket.join('g' + code);
     socket.data.gameRoom = code;
 
-    socket.emit(
-      'game:joined',
-      publicGameRoom(room)
-    );
-
+    socket.emit('game:joined', publicGameRoom(room));
     emitGameRoom(room);
   });
 
-  socket.on('game:leave', () =>
-    leaveGameRoom(socket)
-  );
+  on('game:leave', () => leaveGameRoom());
 
-  /* =================================
-     PLAYER READY
-  ================================= */
-
-  socket.on('game:ready', ready => {
-    const room =
-      gameRooms[socket.data.gameRoom];
-
-    if (
-      !room ||
-      room.status !== 'lobby'
-    ) return;
+  on('game:ready', ready => {
+    const room = gameRooms[socket.data.gameRoom];
+    if (!room || room.status !== 'lobby') return;
 
     const player = room.players.find(
       p => p.sid === socket.id
@@ -1205,17 +1107,11 @@ io.on('connection', socket => {
     if (!player) return;
 
     player.ready = !!ready;
-
     emitGameRoom(room);
   });
 
-  /* =================================
-     START GAME
-  ================================= */
-
-  socket.on('game:start', () => {
-    const room =
-      gameRooms[socket.data.gameRoom];
+  on('game:start', () => {
+    const room = gameRooms[socket.data.gameRoom];
 
     if (
       !room ||
@@ -1226,164 +1122,59 @@ io.on('connection', socket => {
     const rules = GAME_RULES[room.game];
 
     if (room.players.length < rules.min) {
-      return socket.emit(
-        'err',
-        `কমপক্ষে ${rules.min} জন খেলোয়াড় লাগবে`
-      );
+      return socket.emit('err', 'আরও খেলোয়াড় লাগবে');
     }
 
     room.status = 'playing';
     room.startedAt = Date.now();
 
-    room.players.forEach(p => {
-      p.alive = true;
-      p.health = 100;
-    });
-
     emitGameRoom(room);
 
-    safeEmit(
-      'g' + room.code,
-      'game:started',
-      {
-        game: room.game,
-        code: room.code,
-        map: room.map,
-        startedAt: room.startedAt
-      }
-    );
+    emitRoom('g' + room.code, 'game:started', {
+      game: room.game,
+      code: room.code,
+      map: room.map,
+      startedAt: room.startedAt
+    });
   });
 
-  /* =================================
-     GAME ACTIONS
-  ================================= */
-
-  socket.on('game:action', payload => {
-    const room =
-      gameRooms[socket.data.gameRoom];
+  on('game:action', payload => {
+    const room = gameRooms[socket.data.gameRoom];
 
     if (
       !room ||
       room.status !== 'playing' ||
       !payload ||
-      typeof payload !== 'object'
+      typeof payload !== 'object' ||
+      JSON.stringify(payload).length > 1500
     ) return;
 
     const player = room.players.find(
       p => p.sid === socket.id
     );
 
-    if (
-      !player ||
-      player.alive === false
-    ) return;
+    if (!player || player.alive === false) return;
 
-    const raw = JSON.stringify(payload);
-
-    if (raw.length > 1500) return;
-
-    const action = {
+    emitRoom('g' + room.code, 'game:action', {
       uid: player.uid,
       name: player.name,
       action: payload.action,
       data: payload.data
-    };
-
-    if (
-      room.game === 'racing' &&
-      payload.action === 'race:update'
-    ) {
-      const d = payload.data || {};
-
-      player.x = Number.isFinite(d.x)
-        ? Math.max(-10000, Math.min(10000, d.x))
-        : player.x;
-
-      player.y = Number.isFinite(d.y)
-        ? Math.max(-10000, Math.min(10000, d.y))
-        : player.y;
-
-      player.angle = Number.isFinite(d.angle)
-        ? d.angle
-        : player.angle;
-
-      player.lap = Number.isFinite(d.lap)
-        ? Math.max(0, Math.min(99, Math.floor(d.lap)))
-        : player.lap;
-
-      player.score = Number.isFinite(d.score)
-        ? Math.max(0, Math.min(1000000, d.score))
-        : player.score;
-
-      safeEmit(
-        'g' + room.code,
-        'game:player-update',
-        {
-          id: player.uid,
-          x: player.x,
-          y: player.y,
-          angle: player.angle,
-          lap: player.lap,
-          score: player.score
-        }
-      );
-
-    } else if (
-      room.game === 'battle' &&
-      payload.action === 'battle:update'
-    ) {
-      const d = payload.data || {};
-
-      player.x = Number.isFinite(d.x)
-        ? Math.max(-10000, Math.min(10000, d.x))
-        : player.x;
-
-      player.y = Number.isFinite(d.y)
-        ? Math.max(-10000, Math.min(10000, d.y))
-        : player.y;
-
-      player.angle = Number.isFinite(d.angle)
-        ? d.angle
-        : player.angle;
-
-      safeEmit(
-        'g' + room.code,
-        'game:player-update',
-        {
-          id: player.uid,
-          x: player.x,
-          y: player.y,
-          angle: player.angle
-        }
-      );
-
-    } else {
-      safeEmit(
-        'g' + room.code,
-        'game:action',
-        action
-      );
-    }
+    });
   });
 
-  /* =================================
-     GAME FINISH
-  ================================= */
+  on('game:finish', result => {
+    const room = gameRooms[socket.data.gameRoom];
 
-  socket.on('game:finish', result => {
-    const room =
-      gameRooms[socket.data.gameRoom];
-
-    if (
-      !room ||
-      room.status !== 'playing'
-    ) return;
+    if (!room || room.status !== 'playing') return;
 
     const player = room.players.find(
       p => p.sid === socket.id
     );
 
     if (!player) return;
+
+    player.finished = true;
 
     if (room.game === 'racing') {
       player.score = Math.max(
@@ -1392,14 +1183,10 @@ io.on('connection', socket => {
       );
     }
 
-    player.finished = true;
-
-    if (
-      room.players.every(p => p.finished)
-    ) {
+    if (room.players.every(p => p.finished)) {
       room.status = 'finished';
 
-      safeEmit(
+      emitRoom(
         'g' + room.code,
         'game:finished',
         publicGameRoom(room)
@@ -1409,13 +1196,8 @@ io.on('connection', socket => {
     emitGameRoom(room);
   });
 
-  /* =================================
-     BATTLE ELIMINATION REQUEST
-  ================================= */
-
-  socket.on('game:eliminate', uid => {
-    const room =
-      gameRooms[socket.data.gameRoom];
+  on('game:eliminate', uid => {
+    const room = gameRooms[socket.data.gameRoom];
 
     if (
       !room ||
@@ -1438,14 +1220,41 @@ io.on('connection', socket => {
       victim.alive === false
     ) return;
 
-    safeEmit(
-      'g' + room.code,
-      'game:combat-request',
-      {
-        from: attacker.uid,
-        to: victim.uid
-      }
-    );
+    emitRoom('g' + room.code, 'game:combat-request', {
+      from: attacker.uid,
+      to: victim.uid
+    });
+  });
+
+  /* =================================
+     VOICE CHAT SIGNALING
+  ================================= */
+
+  on('sig', (to, data) => {
+    if (
+      typeof to !== 'string' ||
+      !data ||
+      typeof data !== 'object'
+    ) return;
+
+    const target = io.sockets.sockets.get(to);
+    if (!target) return;
+
+    const sameParty =
+      socket.data.pcode &&
+      socket.data.pcode === target.data.pcode;
+
+    const sameLudo =
+      socket.data.code &&
+      socket.data.code === target.data.code;
+
+    const sameGame =
+      socket.data.gameRoom &&
+      socket.data.gameRoom === target.data.gameRoom;
+
+    if (sameParty || sameLudo || sameGame) {
+      target.emit('sig', socket.id, data);
+    }
   });
 
   /* =================================
@@ -1453,23 +1262,53 @@ io.on('connection', socket => {
   ================================= */
 
   socket.on('disconnect', async () => {
-    leaveLudo();
-    leaveP();
-    leaveGameRoom(socket);
+    try {
+      const code = socket.data.code;
+      const room = rooms[code];
 
-    const id = socket.data.uid;
+      if (room) {
+        const player = room.players.find(
+          p => p.id === socket.id
+        );
 
-    if (
-      id &&
-      online.get(id) === socket.id
-    ) {
-      online.delete(id);
+        if (player) {
+          player.left = true;
 
-      const user = await getU(id);
+          if (room.players.every(p => p.left)) {
+            delete rooms[code];
+          } else {
+            if (
+              room.phase !== 'over' &&
+              room.players[room.turn]?.id === socket.id
+            ) {
+              next(room);
+            }
 
-      if (user) {
-        await presence(user);
+            pub(room);
+          }
+        }
       }
+
+      leaveP();
+      leaveGameRoom();
+
+      const id = socket.data.uid;
+
+      if (
+        id &&
+        online.get(id) === socket.id
+      ) {
+        online.delete(id);
+
+        const user = await getU(id);
+
+        if (user) {
+          await presence(user);
+        }
+      }
+
+    } catch (error) {
+      console.error('Disconnect error:', error.message);
     }
   });
 
@@ -1479,20 +1318,24 @@ io.on('connection', socket => {
    SERVER START
 ================================= */
 
-const port = Number(process.env.PORT) || 3000;
-
-srv.listen(port, () => {
-  console.log(
-    `RS LUDO server listening on ${port}`
-  );
+srv.listen(PORT, () => {
+  console.log(`RS LUDO server listening on ${PORT}`);
 });
 
+/* =================================
+   SHUTDOWN
+================================= */
+
 process.on('SIGTERM', async () => {
+  console.log('Server shutting down');
+
   try {
     if (mongoClient) {
       await mongoClient.close();
     }
-  } finally {
-    process.exit(0);
+  } catch (error) {
+    console.error('MongoDB close error:', error.message);
   }
+
+  srv.close(() => process.exit(0));
 });
