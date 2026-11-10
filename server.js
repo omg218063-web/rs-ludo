@@ -1,71 +1,148 @@
 const express=require('express'),http=require('http'),{Server}=require('socket.io'),{MongoClient}=require('mongodb');
 const app=express(),srv=http.createServer(app),io=new Server(srv);
 app.use(express.static('public'));
-const rooms={},SEATS=[0,2,1,3],SAFE=[0,8,13,21,26,34,39,47],FEES=[0,50,100,200,500];
+const rooms={},parties={},online=new Map(),SEATS=[0,2,1,3],SAFE=[0,8,13,21,26,34,39,47],FEES=[0,50,100,200,500],RP=[0,100,300,500,800,1200,2000,5000];
 let col=null;const mem=new Map();
 if(process.env.MONGO_URL)new MongoClient(process.env.MONGO_URL).connect().then(c=>{col=c.db('rsludo').collection('users');console.log('DB ok')}).catch(e=>console.log('DB error',e.message));
 const getU=async id=>col?await col.findOne({_id:id}):mem.get(id);
 const putU=async u=>{if(col)await col.replaceOne({_id:u._id},u,{upsert:true});else mem.set(u._id,u)};
-const pu=u=>({id:u._id,name:u.name,pic:u.pic||'',coins:u.coins});
+const pu=u=>({id:u._id,name:u.name,pic:u.pic||'',ring:u.ring||0,rings:u.rings||[0],coins:u.coins});
+const pi=u=>({id:u._id,name:u.name,pic:u.pic||'',ring:u.ring||0});
 const ab=(s,p)=>(s*13+p)%52;
 const legal=(pl,d)=>pl.pieces.map((p,i)=>i).filter(i=>pl.pieces[i]<0?d==6:pl.pieces[i]+d<=56);
 function next(r){let n=0;do{r.turn=(r.turn+1)%r.players.length;n++}while(r.players[r.turn].left&&n<9);r.phase='roll';r.dice=0}
+const pubP=p=>io.to('p'+p.code).emit('party',{code:p.code,host:p.host,fee:p.fee,m:p.m});
+async function sendF(uid){
+ const sid=online.get(uid);if(!sid)return;
+ const u=await getU(uid);if(!u)return;
+ const L=async a=>{const o=[];for(const i of a||[]){const x=await getU(i);if(x)o.push({...pi(x),online:online.has(i)})}return o};
+ io.to(sid).emit('friends',{friends:await L(u.friends),reqs:await L(u.reqs)})}
+const presence=async u=>{for(const f of u.friends||[])sendF(f)};
+
 io.on('connection',s=>{
  const R=()=>rooms[s.data.code],pub=r=>io.to(r.code).emit('state',r);
  const U=async()=>s.data.uid?await getU(s.data.uid):null;
  const sendMe=async()=>{const u=await U();if(u)s.emit('me',pu(u))};
 
+ /* ---- পার্টি ---- */
+ const leaveP=()=>{
+  const c=s.data.pcode,p=parties[c];if(!p)return;
+  p.m=p.m.filter(x=>x.sid!=s.id);s.leave('p'+c);delete s.data.pcode;s.emit('party',null);
+  if(!p.m.length)delete parties[c];
+  else{if(!p.m.some(x=>x.uid==p.host))p.host=p.m[0].uid;pubP(p)}};
+ const joinP=(c,u)=>{
+  const p=parties[c];
+  if(!p)return s.emit('err','পার্টি পাওয়া যায়নি');
+  if(s.data.pcode==c)return;
+  if(p.m.length>=4)return s.emit('err','পার্টি ভর্তি');
+  leaveP();
+  p.m.push({sid:s.id,uid:u._id,...pi(u)});
+  s.join('p'+c);s.data.pcode=c;pubP(p)};
+ const mkP=u=>{
+  const c=Math.random().toString(36).slice(2,6).toUpperCase();
+  parties[c]={code:c,host:u._id,fee:0,m:[]};joinP(c,u)};
+ const upd=u=>{
+  const p=parties[s.data.pcode],m=p&&p.m.find(x=>x.uid==u._id);
+  if(m){Object.assign(m,pi(u));pubP(p)}};
+ const enter=async u=>{
+  s.data.uid=u._id;online.set(u._id,s.id);
+  s.emit('me',pu(u));if(!s.data.pcode)mkP(u);
+  sendF(u._id);presence(u)};
+
+ /* ---- অ্যাকাউন্ট ---- */
  s.on('register',async name=>{
   name=String(name||'').replace(/[<>&"'`]/g,'').trim().slice(0,12);
   if(!name)return s.emit('err','নাম দিন');
   let id;do{id=String(100000+Math.floor(Math.random()*900000))}while(await getU(id));
-  const u={_id:id,name,pic:'',coins:1000,bonus:0};
-  await putU(u);s.data.uid=id;s.emit('me',pu(u))});
+  const u={_id:id,name,pic:'',coins:1000,bonus:0,ring:0,rings:[0],friends:[],reqs:[]};
+  await putU(u);enter(u)});
  s.on('login',async id=>{
   const u=await getU(String(id||'').trim());
   if(!u)return s.emit('badid');
-  s.data.uid=u._id;s.emit('me',pu(u))});
+  enter(u)});
  s.on('pic',async d=>{
   const u=await U();
   if(!u||typeof d!='string'||d.length>30000||!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/.test(d))return;
-  u.pic=d;await putU(u);sendMe()});
+  u.pic=d;await putU(u);sendMe();upd(u)});
  s.on('bonus',async()=>{
   const u=await U();if(!u)return;
   if(u.coins>=100)return s.emit('err','কয়েন ১০০ এর কম হলে বোনাস পাবেন');
   if(Date.now()-u.bonus<864e5)return s.emit('err','বোনাস ২৪ ঘণ্টায় একবার');
   u.coins+=200;u.bonus=Date.now();await putU(u);sendMe();s.emit('err','🎁 ২০০ কয়েন পেয়েছেন!')});
+ s.on('buy',async i=>{
+  const u=await U();if(!u||!(i>=1&&i<RP.length))return;
+  u.rings=u.rings||[0];
+  if(u.rings.includes(i))return;
+  if(u.coins<RP[i])return s.emit('err','কয়েন কম');
+  u.coins-=RP[i];u.rings.push(i);u.ring=i;await putU(u);sendMe();upd(u);s.emit('err','✅ রিং কেনা হয়েছে!')});
+ s.on('setring',async i=>{
+  const u=await U();if(!u||!(u.rings||[0]).includes(i))return;
+  u.ring=i;await putU(u);sendMe();upd(u)});
 
- const join=async r=>{
-  const u=await U();if(!u)return s.emit('err','আগে লগইন করুন');
-  if(r.phase!='lobby')return s.emit('err','খেলা শুরু হয়ে গেছে');
-  if(r.players.length>=4)return s.emit('err','রুম ভর্তি');
-  if(r.players.some(p=>p.uid==u._id))return s.emit('err','আপনি আগেই ঢুকেছেন');
-  if(u.coins<r.fee)return s.emit('err','কয়েন কম, এন্ট্রি '+r.fee);
-  r.players.push({id:s.id,uid:u._id,name:u.name,pic:u.pic||'',coins:u.coins,seat:SEATS[r.players.length],pieces:[-1,-1,-1,-1]});
-  s.join(r.code);s.data.code=r.code;r.msg=u.name+' জয়েন করেছে';pub(r)};
- s.on('create',async fee=>{
+ /* ---- বন্ধু ---- */
+ s.on('addf',async gid=>{
+  const u=await U();if(!u)return;
+  gid=String(gid||'').trim();
+  const t=await getU(gid);
+  if(!t)return s.emit('err','এই আইডি পাওয়া যায়নি');
+  if(t._id==u._id)return s.emit('err','নিজেকে অ্যাড করা যায় না');
+  t.reqs=t.reqs||[];u.friends=u.friends||[];
+  if(u.friends.includes(t._id))return s.emit('err','আগেই বন্ধু');
+  if(t.reqs.includes(u._id))return s.emit('err','রিকোয়েস্ট আগেই পাঠানো');
+  t.reqs.push(u._id);await putU(t);sendF(t._id);
+  s.emit('err','📨 রিকোয়েস্ট পাঠানো হয়েছে')});
+ s.on('accept',async id=>{
+  const u=await U(),t=await getU(String(id));
+  if(!u||!t||!(u.reqs||[]).includes(t._id))return;
+  u.reqs=u.reqs.filter(x=>x!=t._id);
+  u.friends=u.friends||[];t.friends=t.friends||[];
+  if(!u.friends.includes(t._id))u.friends.push(t._id);
+  if(!t.friends.includes(u._id))t.friends.push(u._id);
+  await putU(u);await putU(t);sendF(u._id);sendF(t._id)});
+ s.on('decl',async id=>{
+  const u=await U();if(!u)return;
+  u.reqs=(u.reqs||[]).filter(x=>x!=String(id));await putU(u);sendF(u._id)});
+ s.on('invite',async fid=>{
+  const u=await U(),t=online.get(String(fid));
+  if(!u||!t||!(u.friends||[]).includes(String(fid)))return;
+  if(!s.data.pcode)mkP(u);
+  io.to(t).emit('invite',{from:u.name,code:s.data.pcode});
+  s.emit('err','📨 ইনভাইট পাঠানো হয়েছে')});
+ s.on('acceptinv',async c=>{const u=await U();if(u)joinP(String(c).toUpperCase(),u)});
+ s.on('joinparty',async c=>{const u=await U();if(u)joinP(String(c).toUpperCase(),u)});
+ s.on('pfee',f=>{
+  const p=parties[s.data.pcode];
+  if(!p||!FEES.includes(f)||!p.m.length||p.host!=s.data.uid)return;
+  p.fee=f;pubP(p)});
+
+ /* ---- পার্টি থেকে লুডু শুরু ---- */
+ s.on('pstart',async()=>{
+  const p=parties[s.data.pcode];
+  if(!p||p.host!=s.data.uid||s.data.code)return;
+  if(p.m.length<2)return s.emit('err','কমপক্ষে ২ জন লাগবে');
+  const us=[];
+  for(const m of p.m){
+   const x=await getU(m.uid);
+   if(!x||x.coins<p.fee)return s.emit('err',m.name+' এর কয়েন কম');
+   us.push(x)}
   const c=Math.random().toString(36).slice(2,6).toUpperCase();
-  const r=rooms[c]={code:c,fee:FEES.includes(fee)?fee:0,pot:0,players:[],turn:0,dice:0,phase:'lobby',msg:'',winner:null};
-  await join(r);if(!r.players.length)delete rooms[c]});
- s.on('join',c=>{const r=rooms[String(c||'').toUpperCase()];r?join(r):s.emit('err','রুম পাওয়া যায়নি')});
- s.on('sig',(to,data)=>{
-  const t=io.sockets.sockets.get(to);
-  if(t&&t.data.code&&t.data.code===s.data.code)t.emit('sig',s.id,data)});
-
- s.on('start',async()=>{
-  const r=R();
-  if(!r||r.phase!='lobby'||r.players[0].id!=s.id||r.players.length<2)return;
-  r.phase='starting';const us=[];
-  for(const p of r.players){
-   const u=await getU(p.uid);
-   if(!u||u.coins<r.fee){r.phase='lobby';return s.emit('err',p.name+' এর কয়েন কম')}
-   us.push(u)}
+  const r=rooms[c]={code:c,fee:p.fee,pot:p.fee*us.length,players:[],turn:0,dice:0,phase:'roll',msg:'',winner:null};
   for(let k=0;k<us.length;k++){
-   us[k].coins-=r.fee;await putU(us[k]);r.players[k].coins=us[k].coins;
-   io.to(r.players[k].id).emit('me',pu(us[k]))}
-  r.pot=r.fee*r.players.length;r.phase='roll';
+   const x=us[k],m=p.m[k];
+   x.coins-=p.fee;await putU(x);
+   r.players.push({id:m.sid,uid:x._id,...pi(x),coins:x.coins,seat:SEATS[k],pieces:[-1,-1,-1,-1]});
+   const sk=io.sockets.sockets.get(m.sid);
+   if(sk){sk.join(c);sk.data.code=c;sk.emit('me',pu(x))}}
   r.msg='খেলা শুরু! '+r.players[0].name+' আগে ফেলুক';pub(r)});
 
+ /* ---- ভয়েস সিগন্যাল (লবি + খেলা) ---- */
+ s.on('sig',(to,data)=>{
+  const t=io.sockets.sockets.get(to);
+  if(!t)return;
+  const ok=(t.data.code&&t.data.code===s.data.code)||(t.data.pcode&&t.data.pcode===s.data.pcode);
+  if(ok)t.emit('sig',s.id,data)});
+
+ /* ---- লুডু খেলা ---- */
  s.on('roll',()=>{
   const r=R();
   if(!r||r.phase!='roll'||r.players[r.turn].id!=s.id)return;
@@ -78,14 +155,12 @@ io.on('connection',s=>{
    else{r.phase='wait';r.msg=pl.name+' '+d+' ফেলল, চাল নেই 😅';
     setTimeout(()=>{if(rooms[r.code]&&r.phase=='wait'){next(r);r.msg=r.players[r.turn].name+' এর পালা';pub(r)}},1500)}
    pub(r)},800)});
-
  const payout=async(r,pl)=>{
   if(!r.pot)return;
   const u=await getU(pl.uid);if(!u)return;
   u.coins+=r.pot;await putU(u);pl.coins=u.coins;
   r.msg='🏆 '+pl.name+' জিতেছে! 🪙+'+r.pot;
   io.to(pl.id).emit('me',pu(u));pub(r)};
-
  s.on('move',i=>{
   const r=R();
   if(!r||r.phase!='move'||r.players[r.turn].id!=s.id)return;
@@ -101,12 +176,19 @@ io.on('connection',s=>{
   else{next(r);r.msg=r.players[r.turn].name+' এর পালা'}
   pub(r)});
 
- s.on('disconnect',()=>{
+ const leaveGame=()=>{
   const r=R();if(!r)return;
-  const k=r.players.findIndex(p=>p.id==s.id);if(k<0)return;
-  if(r.phase=='lobby')r.players.splice(k,1);else r.players[k].left=true;
-  if(!r.players.length||r.players.every(p=>p.left)){delete rooms[r.code];return}
-  if(r.phase!='lobby'&&r.phase!='over'&&r.turn==k)next(r);
-  r.msg='একজন বের হয়ে গেছে';pub(r)});
+  const k=r.players.findIndex(p=>p.id==s.id);
+  s.leave(r.code);delete s.data.code;
+  if(k<0)return;
+  r.players[k].left=true;
+  if(r.players.every(p=>p.left)){delete rooms[r.code];return}
+  if(r.phase!='over'&&r.turn==k)next(r);
+  r.msg='একজন বের হয়ে গেছে';pub(r)};
+ s.on('lgame',leaveGame);
+ s.on('disconnect',async()=>{
+  leaveGame();leaveP();
+  const id=s.data.uid;
+  if(id&&online.get(id)==s.id){online.delete(id);const u=await getU(id);if(u)presence(u)}});
 });
 srv.listen(process.env.PORT||3000);
