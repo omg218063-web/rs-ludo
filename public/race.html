@@ -1,82 +1,242 @@
 <!DOCTYPE html><html lang="bn"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>RS Race</title>
+<title>RS Racing</title>
 <style>
-html,body{margin:0;height:100%;overflow:hidden;background:#12002b;color:#fff;font-family:sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
-canvas{display:block;width:100%;height:100%}
-#hud{position:fixed;top:10px;left:0;right:0;display:flex;justify-content:space-around;font-size:18px;font-weight:700;text-shadow:0 2px 4px #000}
-.ctl{position:fixed;bottom:0;width:50%;height:45%;display:flex;align-items:flex-end;justify-content:center;font-size:56px;padding-bottom:24px;opacity:.45}
+html,body{margin:0;height:100%;overflow:hidden;background:#12002b;color:#fff;font-family:sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;text-align:center}
+[hidden]{display:none!important}
+#c{display:block;width:100%;height:100%}
+#hud{position:fixed;top:8px;left:0;right:0;display:flex;justify-content:space-around;font-size:19px;font-weight:700;text-shadow:0 2px 4px #000}
+.ctl{position:fixed;bottom:0;width:50%;height:60%;display:flex;align-items:flex-end;justify-content:center;font-size:54px;padding-bottom:20px;opacity:.35}
 #L{left:0}#R{right:0}
-#ov{position:fixed;inset:0;background:#000b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:19px;text-align:center;padding:16px}
-#ov[hidden]{display:none}
-button{font-size:20px;padding:12px 28px;border:0;border-radius:16px;background:linear-gradient(#ffd54a,#ff9800);color:#2b0050;font-weight:700}
+#BR{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:3;font-size:26px;padding:10px 18px}
+.ov{position:fixed;inset:0;background:radial-gradient(circle at 50% 30%,#4a1480,#12002b 75%);overflow:auto;padding:10px;z-index:5;touch-action:pan-y}
+button{font-size:16px;padding:9px 14px;margin:3px;border:0;border-radius:14px;background:linear-gradient(#ffd54a,#ff9800);color:#2b0050;font-weight:700}
+button:disabled{opacity:.4}
+.cb{background:#ffffff22;color:#fff;border:2px solid #ffffff44}.cb.on{background:linear-gradient(#ffd54a,#ff9800);color:#2b0050;border-color:#fff}
+.cb small{display:block;font-size:11px}
+#cars{display:grid;grid-template-columns:1fr 1fr;gap:4px}
+.pr{display:flex;align-items:center;gap:8px;background:#ffffff14;border-radius:12px;padding:4px 8px;margin:4px 0;text-align:left}
+.pr img{width:34px;height:34px;border-radius:50%;object-fit:cover}.pr b{flex:1}.pr small{opacity:.7}.pr.off{opacity:.35}
+#pv{border-radius:16px;background:linear-gradient(#35205f,#12002b);max-width:100%}
+#wt{position:fixed;top:60px;left:0;right:0;font-size:18px;background:#000a;padding:6px;z-index:4}
 </style></head><body>
 <canvas id="c"></canvas>
-<div id="hud"><span id="lp">ল্যাপ 1/5</span><span id="tm">0.0s</span><span id="sp">0 km/h</span></div>
-<div class="ctl" id="L">◀</div><div class="ctl" id="R">▶</div>
-<div id="ov"><h1>🏁 RS রেস</h1>
-<p id="t">৫ ল্যাপ, সবচেয়ে কম সময়ে শেষ করুন!<br>বাম বা ডান পাশে চেপে ধরে গাড়ি ঘোরান।<br>রাস্তার বাইরে গেলে গাড়ি ধীর হয়।</p>
-<button id="go">▶ শুরু</button><button id="hm">🏠 হোম</button></div>
+<div id="hud" hidden><span id="ps"></span><span id="tm"></span><span id="sp"></span></div>
+<div id="wt" hidden>🏁 শেষ করেছেন! অন্যদের জন্য অপেক্ষা...</div>
+<div class="ctl" id="L" hidden>◀</div><div class="ctl" id="R" hidden>▶</div><button id="BR" hidden>🛑</button>
+
+<div id="lob" class="ov"><h2 style="margin:4px">🏁 RS রেসিং</h2>
+<div id="st" style="font-size:13px;opacity:.8"></div>
+<div id="pl"></div>
+<canvas id="pv" width="240" height="130"></canvas>
+<div id="cs" style="font-size:14px;margin:4px"></div>
+<h4 style="margin:6px">🚗 গাড়ি বাছুন</h4><div id="cars"></div>
+<h4 style="margin:6px">🗺️ ম্যাপ (হোস্ট বাছবেন)</h4><div id="maps"></div>
+<button id="rd" style="font-size:20px;padding:12px 30px;margin-top:10px">✅ রেডি</button>
+<button id="hm">🏠 হোম</button></div>
+
+<div id="res" class="ov" hidden><h2>🏆 ফলাফল</h2><div id="rl" style="font-size:18px"></div>
+<button id="again" hidden>🔁 আবার খেলো</button><button id="hm2">🏠 হোম</button></div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
 const $=i=>document.getElementById(i),cv=$('c'),g=cv.getContext('2d'),s=io();
-const LAPS=5,TAU=Math.PI*2;
-let W,H,cx,cy,rx,ry,rw,L=0,R=0,run=0,car,prev,prog,t0,last=0,msg='',best=+localStorage.rsbest||0;
-function rs(){W=cv.width=innerWidth;H=cv.height=innerHeight;cx=W/2;cy=H/2;rx=W*.36;ry=H*.33;rw=Math.min(rx,ry)*.55}
-addEventListener('resize',rs);rs();
-s.on('connect',()=>{const i=localStorage.rsid;if(i)s.emit('login',i)});
-s.on('err',m=>{$('t').innerHTML+='<br>'+m});
-const set=(k,v)=>{if(k=='L')L=v;else R=v};
-[['L',$('L')],['R',$('R')]].forEach(([k,el])=>{
- el.onpointerdown=()=>set(k,1);
- ['onpointerup','onpointerleave','onpointercancel'].forEach(e=>el[e]=()=>set(k,0))});
-addEventListener('keydown',e=>{if(e.key=='ArrowLeft')L=1;if(e.key=='ArrowRight')R=1});
-addEventListener('keyup',e=>{if(e.key=='ArrowLeft')L=0;if(e.key=='ArrowRight')R=0});
-const phi=(x,y)=>Math.atan2((y-cy)/ry,(x-cx)/rx);
-const dev=(x,y)=>Math.abs(Math.hypot((x-cx)/rx,(y-cy)/ry)-1)*Math.min(rx,ry);
-function reset(){car={x:cx,y:cy+ry,a:0,v:0};prev=phi(car.x,car.y);prog=0;L=R=0}
-function start(){
- reset();$('ov').hidden=1;run=0;let n=3;msg='3';
- const iv=setInterval(()=>{n--;if(n>0)msg=''+n;else if(n==0)msg='🏁 GO!';else{clearInterval(iv);msg='';run=1;t0=performance.now()}},800)}
-$('go').onclick=start;
-$('hm').onclick=()=>location.href='/';
-function finish(){
- run=0;const ms=performance.now()-t0;
- if(!best||ms<best){best=ms;localStorage.rsbest=ms}
- $('t').innerHTML='🏆 আপনার সময়: <b>'+(ms/1000).toFixed(2)+'s</b><br>সেরা সময়: '+(best/1000).toFixed(2)+'s';
- $('go').textContent='🔁 আবার খেলুন';$('ov').hidden=0;
- s.emit('racewin',Math.round(ms))}
-function loop(t){
- const dt=Math.min(.05,(t-last)/1000);last=t;
- const d=dev(car.x,car.y),on=d<rw/2,top=W*.55;
- if(run){
-  const vmax=on?top:top*.4;
-  car.v+=(vmax-car.v)*Math.min(1,dt*1.6);
-  car.a+=(R-L)*2.7*(.4+.6*car.v/top)*dt;
-  car.x+=Math.cos(car.a)*car.v*dt;car.y+=Math.sin(car.a)*car.v*dt;
-  const ph=phi(car.x,car.y);let df=ph-prev;
-  if(df>Math.PI)df-=TAU;if(df<-Math.PI)df+=TAU;
-  prog-=df;prev=ph;
-  const lap=Math.floor(prog/TAU);
-  $('lp').textContent='ল্যাপ '+Math.min(LAPS,Math.max(0,lap)+1)+'/'+LAPS;
-  $('tm').textContent=((performance.now()-t0)/1000).toFixed(1)+'s';
-  $('sp').textContent=Math.round(car.v/top*120)+' km/h';
-  if(lap>=LAPS)finish()}
+const SL=200,RW=2000,LN=3,CH=1000,DD=130,CD=1/Math.tan(50*Math.PI/180),PZ=CH*CD,CARW=560,KMH=39.68;
+const CARS=[
+{n:'Lamborghini Aventador',c:'#ffd600',top:330,acc:.34,hd:1.15,h:.72,cab:.58,sp:1},
+{n:'Mercedes AMG GT',c:'#cfd8dc',top:300,acc:.3,hd:1.05,h:.82,cab:.7,sp:1},
+{n:'BMW M4',c:'#1e88e5',top:290,acc:.3,hd:1.1,h:.88,cab:.72,sp:0},
+{n:'Toyota Supra',c:'#ff6d00',top:270,acc:.28,hd:1,h:.85,cab:.7,sp:1},
+{n:'Honda Civic',c:'#e53935',top:240,acc:.26,hd:1,h:.98,cab:.78,sp:0},
+{n:'Toyota Corolla',c:'#eceff1',top:210,acc:.23,hd:.95,h:1.05,cab:.8,sp:0}];
+const MAPS=[
+{n:'❄️ শীতের সকাল',sky:['#8fb8e8','#e8f2ff'],gr:['#f5f9ff','#e3edf8'],rd:['#5a5f66','#555a60'],rb:['#d32f2f','#fff'],fog:'#dbe8f5',fx:'snow',tree:['#2c5a45','#4a3426','#fff'],mt:['#9fb6d0','#c8d8ea'],seed:7},
+{n:'☀️ গরমের দুপুর',sky:['#2e9bff','#bfe6ff'],gr:['#d8c27a','#cfb86c'],rd:['#6b6b6b','#636363'],rb:['#e53935','#fff'],fog:'#d6efff',fx:'sun',tree:['#2e8b3d','#7a4b1b'],mt:['#c9a36a','#d8b97f'],seed:21},
+{n:'🌧️ বৃষ্টির দিন',sky:['#4b5563','#9aa4b2'],gr:['#2f5d3a','#2a5334'],rd:['#2b2f36','#272b32'],rb:['#b71c1c','#ccc'],fog:'#8a94a0',fx:'rain',tree:['#1f4d33','#3b2a1a'],mt:['#5d6b7a','#74828f'],seed:33},
+{n:'🌅 ভোরবেলা',sky:['#3b2a6e','#ff9a5a'],gr:['#3c6e47','#356440'],rd:['#4a4650','#45424b'],rb:['#d32f2f','#fff'],fog:'#f2a27a',fx:'dawn',tree:['#27503a','#3a2a1c'],mt:['#5b3d73','#7d4f7f'],seed:45},
+{n:'🌆 সন্ধ্যাবেলা',sky:['#241a4d','#ff6f3c'],gr:['#2f4f3a','#294732'],rd:['#3b3a44','#37363f'],rb:['#c62828','#eee'],fog:'#c0584a',fx:'dusk',tree:['#1d3b2c','#2a1d14'],mt:['#3a2a5a','#58355d'],seed:57}];
+let W,H,ME=null,RS=null,mode='lobby',M=MAPS[0],K=CARS[0],segs=[],N=0,trackLen=0;
+let pos=0,px=0,spd=0,fin=0,cd=0,bg=0,Lk=0,Rk=0,Bk=0,opp={},RES=[],lastT=0,lastSend=0,joined=0;
+const PA=Array.from({length:90},()=>({x:Math.random(),y:Math.random(),v:.3+Math.random()}));
+const ease=(a,b,p)=>a+(b-a)*(-Math.cos(p*Math.PI)/2+.5);
+const dflt=n=>'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#6a1b9a"/><text x="48" y="66" font-size="54" text-anchor="middle" fill="#ffd54a" font-family="sans-serif">'+((n||'?')[0])+'</text></svg>');
+function rsz(){W=cv.width=Math.min(innerWidth,560);H=cv.height=Math.round(W*innerHeight/innerWidth)}
+addEventListener('resize',rsz);rsz();
+
+/* ---------- গাড়ি আঁকা (পেছন থেকে) ---------- */
+function car(g,x,y,w,k,tilt,br){
+ g.save();g.translate(x,y);g.rotate(tilt||0);
+ const bh=w*.34*k.h,ch=w*.24*k.h,cw=w*k.cab*.8,b1=cw*.62,t1=cw*.46;
+ g.fillStyle='#0005';g.beginPath();g.ellipse(0,0,w*.56,w*.07,0,0,7);g.fill();
+ g.fillStyle='#111';[-1,1].forEach(d=>{g.beginPath();g.roundRect(d*w*.46-w*.07,-w*.2,w*.14,w*.2,w*.03);g.fill()});
+ g.fillStyle=k.c;g.beginPath();g.moveTo(-w*.5,-w*.05);g.lineTo(w*.5,-w*.05);g.lineTo(w*.47,-bh);g.lineTo(-w*.47,-bh);g.closePath();g.fill();
+ g.fillStyle='#0003';g.fillRect(-w*.5,-w*.09,w,w*.045);
+ g.fillStyle=k.c;g.beginPath();g.moveTo(-b1,-bh);g.lineTo(b1,-bh);g.lineTo(t1,-bh-ch);g.lineTo(-t1,-bh-ch);g.closePath();g.fill();
+ g.fillStyle='#16222e';g.beginPath();g.moveTo(-b1*.86,-bh-ch*.08);g.lineTo(b1*.86,-bh-ch*.08);g.lineTo(t1*.84,-bh-ch*.86);g.lineTo(-t1*.84,-bh-ch*.86);g.closePath();g.fill();
+ g.fillStyle='#fff3';g.fillRect(-t1*.7,-bh-ch*.8,t1*.5,ch*.12);
+ if(k.sp){g.fillStyle='#111';g.fillRect(-w*.44,-bh-w*.06,w*.88,w*.04);g.fillRect(-w*.3,-bh-w*.02,w*.04,w*.04);g.fillRect(w*.26,-bh-w*.02,w*.04,w*.04)}
+ g.fillStyle=br?'#ff1744':'#b71c1c';
+ if(br){g.shadowColor='#f00';g.shadowBlur=w*.12}
+ g.fillRect(-w*.45,-bh*.82,w*.2,w*.055);g.fillRect(w*.25,-bh*.82,w*.2,w*.055);g.shadowBlur=0;
+ g.fillStyle='#fff';g.fillRect(-w*.08,-bh*.5,w*.16,w*.05);
+ g.restore()}
+
+/* ---------- ট্র্যাক বানানো ---------- */
+function build(seed){
+ let a=seed;const rnd=()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+ segs=[];
+ const ly=()=>segs.length?segs[segs.length-1].p2.w.y:0;
+ const add=(c,y)=>{const i=segs.length,y1=ly();segs.push({i,p1:{w:{y:y1,z:i*SL},c:{},s:{}},p2:{w:{y:y,z:(i+1)*SL},c:{},s:{}},curve:c,alt:Math.floor(i/4)%2,fin:i<3})};
+ const road=(e,h,l,c,y)=>{const sy=ly(),ey=sy+y*SL,t=e+h+l;
+  for(let n=0;n<e;n++)add(ease(0,c,n/e),ease(sy,ey,n/t));
+  for(let n=0;n<h;n++)add(c,ease(sy,ey,(e+n)/t));
+  for(let n=0;n<l;n++)add(ease(c,0,n/l),ease(sy,ey,(e+h+n)/t))};
+ road(0,30,0,0,0);
+ const CV=[0,0,2,-2,3,-3,4,-4];
+ while(segs.length<2900){
+  const cur=ly()/SL;
+  road(20+rnd()*20|0,30+rnd()*90|0,20+rnd()*20|0,CV[rnd()*8|0],(rnd()-.5)*50-cur*.3)}
+ road(25,60,25,0,-ly()/SL);
+ N=segs.length;trackLen=N*SL;
+ segs.forEach(s=>{if(s.i%5==0&&rnd()<.9)s.tr={x:(rnd()<.5?-1:1)*(1.3+rnd()*1.1),s:.8+rnd()*.5}})}
+const segAt=z=>segs[Math.floor((((z%trackLen)+trackLen)%trackLen)/SL)];
+
+/* ---------- আঁকার সাহায্যকারী ---------- */
+function proj(p,cx,cy,cz){p.c.x=-cx;p.c.y=p.w.y-cy;p.c.z=p.w.z-cz;p.s.sc=CD/p.c.z;
+ p.s.x=Math.round(W/2+p.s.sc*p.c.x*W/2);p.s.y=Math.round(H/2-p.s.sc*p.c.y*H/2);p.s.w=Math.round(p.s.sc*RW*W/2)}
+function poly(a,b,c,d,e,f,h,i,col){g.fillStyle=col;g.beginPath();g.moveTo(a,b);g.lineTo(c,d);g.lineTo(e,f);g.lineTo(h,i);g.closePath();g.fill()}
+function sky(){
+ const hy=H/2,gd=g.createLinearGradient(0,0,0,hy);gd.addColorStop(0,M.sky[0]);gd.addColorStop(1,M.sky[1]);
+ g.fillStyle=gd;g.fillRect(0,0,W,hy+2);
+ const sx={sun:[.75,.2,34],dawn:[.3,.47,46],dusk:[.7,.46,44],snow:[.25,.25,24]}[M.fx];
+ if(sx){const rg=g.createRadialGradient(sx[0]*W,sx[1]*H,2,sx[0]*W,sx[1]*H,sx[2]*3);
+  rg.addColorStop(0,M.fx=='snow'?'#ffffffaa':'#fff6c0');rg.addColorStop(.3,(M.fx=='dawn'||M.fx=='dusk')?'#ffb060cc':'#ffe08090');rg.addColorStop(1,'#0000');
+  g.fillStyle=rg;g.fillRect(0,0,W,hy)}
+ [0,1].forEach(l=>{g.fillStyle=M.mt[l];g.beginPath();g.moveTo(0,hy+1);
+  for(let i=0;i<=W;i+=8){const xx=i+bg*(l?.9:.45);g.lineTo(i,hy-H*(l?.07:.12)*(.55+.45*Math.sin(xx*.011+l*2.1)+.25*Math.sin(xx*.027+l)))}
+  g.lineTo(W,hy+1);g.fill()});
+ g.fillStyle=M.gr[0];g.fillRect(0,hy,W,H-hy)}
+function sgm(s,n){
+ const A=s.p1.s,B=s.p2.s,c=s.alt,x1=A.x,y1=A.y,w1=A.w,x2=B.x,y2=B.y,w2=B.w;
+ g.fillStyle=M.gr[c];g.fillRect(0,y2,W,y1-y2);
+ const r1=w1/Math.max(6,2*LN),r2=w2/Math.max(6,2*LN);
+ poly(x1-w1-r1,y1,x1-w1,y1,x2-w2,y2,x2-w2-r2,y2,M.rb[c]);
+ poly(x1+w1+r1,y1,x1+w1,y1,x2+w2,y2,x2+w2+r2,y2,M.rb[c]);
+ poly(x1-w1,y1,x1+w1,y1,x2+w2,y2,x2-w2,y2,s.fin?(c?'#fff':'#111'):M.rd[c]);
+ if(c){const l1=w1*2/LN,l2=w2*2/LN;let a=x1-w1+l1,b=x2-w2+l2;
+  for(let l=1;l<LN;l++,a+=l1,b+=l2){const m1=w1/32,m2=w2/32;poly(a-m1/2,y1,a+m1/2,y1,b+m2/2,y2,b-m2/2,y2,'#fff')}}
+ g.globalAlpha=Math.pow(n/DD,2.2);g.fillStyle=M.fog;g.fillRect(0,y2,W,y1-y2+1);g.globalAlpha=1}
+function tree(x,y,u,sc){
+ const h=u*1700*sc,w=u*700*sc;if(h<5)return;
+ g.fillStyle=M.tree[1];g.fillRect(x-w*.06,y-h*.22,w*.12,h*.22);
+ g.fillStyle=M.tree[0];
+ if(M.fx=='sun'){g.beginPath();g.ellipse(x,y-h*.62,w*.5,h*.4,0,0,7);g.fill();g.fillStyle='#fff2';g.beginPath();g.ellipse(x-w*.12,y-h*.72,w*.2,h*.14,0,0,7);g.fill();return}
+ for(let k=0;k<3;k++){const bw=w*(.55-k*.13),by=y-h*(.2+k*.22),ty=by-h*.34;
+  g.fillStyle=M.tree[0];g.beginPath();g.moveTo(x-bw,by);g.lineTo(x+bw,by);g.lineTo(x,ty);g.closePath();g.fill();
+  if(M.tree[2]){g.fillStyle=M.tree[2];g.beginPath();g.moveTo(x-bw*.45,by-h*.19);g.lineTo(x+bw*.45,by-h*.19);g.lineTo(x,ty);g.closePath();g.fill()}}}
+function spr(s){
+ const A=s.p1.s,B=s.p2.s,u=A.sc*W/2;
+ if(s.tr)tree(A.x+u*s.tr.x*RW,A.y,u,s.tr.s);
+ for(const k in opp){const o=opp[k],oz=Math.min(o.z,trackLen-1);
+  if(Math.floor(oz/SL)%N!==s.i)continue;
+  const pc=(oz%SL)/SL,x=A.x+(B.x-A.x)*pc+u*o.x*RW,y=A.y+(B.y-A.y)*pc,w=CARW*u;
+  if(w<3)continue;
+  car(g,x,y,w,CARS[o.car],0,0);
+  g.fillStyle='#fff';g.font='bold '+Math.max(9,Math.min(16,w*.16))+'px sans-serif';g.textAlign='center';g.fillText(o.name,x,y-w*.62)}}
+function fx(dt){
+ if(M.fx=='snow'){g.fillStyle='#fff';PA.forEach(p=>{p.y+=dt*.25*p.v;p.x+=Math.sin(p.y*9+p.v)*dt*.05;if(p.y>1){p.y=0;p.x=Math.random()}g.beginPath();g.arc(p.x*W,p.y*H,1.5+p.v,0,7);g.fill()})}
+ if(M.fx=='rain'){g.strokeStyle='#cfe3ff99';g.lineWidth=1.2;g.beginPath();PA.forEach(p=>{p.y+=dt*1.6*p.v;p.x-=dt*.12*p.v;if(p.y>1||p.x<0){p.y=0;p.x=Math.random()*1.2}g.moveTo(p.x*W,p.y*H);g.lineTo(p.x*W-4,p.y*H+16)});g.stroke()}
+ if(M.fx=='dusk'||M.fx=='dawn'){g.fillStyle=M.fx=='dusk'?'#1a0a3a33':'#2a1a5a22';g.fillRect(0,0,W,H)}
+ if(M.fx=='dusk'){const r=g.createRadialGradient(W/2,H*.8,10,W/2,H*.6,W*.55);r.addColorStop(0,'#fff2b055');r.addColorStop(1,'#0000');g.fillStyle=r;g.fillRect(0,H*.4,W,H*.6)}}
+
+/* ---------- মূল লুপ ---------- */
+function frame(t){
+ requestAnimationFrame(frame);
+ if(mode!='race')return;
+ const dt=Math.min(.05,(t-lastT)/1000);lastT=t;
+ const started=t>=cd,top=K.top*KMH,pct=spd/top,ps=segAt(pos+PZ);
+ if(started&&!fin){
+  const st=(Rk?1:0)-(Lk?1:0);
+  px+=st*dt*3.4*K.hd*Math.min(1,pct+.2);
+  px-=dt*2*pct*pct*ps.curve*.2;
+  px=Math.max(-2.2,Math.min(2.2,px));
+  const tg=Bk?0:(Math.abs(px)>1?top*.35:top);
+  spd+=(tg-spd)*dt*(Bk?2.5:(spd<tg?K.acc*6:1.4))}
+ else if(fin){spd+=(0-spd)*dt*.8}
+ pos+=spd*dt;bg-=ps.curve*pct*dt*40;
+ if(started&&!fin&&pos>=trackLen){fin=1;s.emit('rfin',Math.round(t-cd));$('wt').hidden=0}
+ if(started&&t-lastSend>66){s.emit('rp',{z:pos,x:px,v:spd});lastSend=t}
+ for(const k in opp){const o=opp[k],est=o.tz+o.v*(t-o.tt)/1000;o.z+=(est-o.z)*.25;o.x+=(o.tx-o.x)*.25}
  /* আঁকা */
- g.fillStyle='#2e7d32';g.fillRect(0,0,W,H);
- g.fillStyle='#276b2b';for(let i=0;i<H;i+=40)g.fillRect(0,i,W,20);
- g.beginPath();g.ellipse(cx,cy,rx,ry,0,0,TAU);
- g.strokeStyle='#fff';g.lineWidth=rw+8;g.stroke();
- g.strokeStyle='#444';g.lineWidth=rw;g.stroke();
- g.setLineDash([16,16]);g.strokeStyle='#ffd54a';g.lineWidth=3;g.stroke();g.setLineDash([]);
- g.fillStyle='#fff';g.fillRect(cx-3,cy+ry-rw/2,6,rw);
- g.save();g.translate(car.x,car.y);g.rotate(car.a);
- g.fillStyle='#0006';g.fillRect(-14,-6,30,18);
- g.fillStyle='#e53935';g.beginPath();g.roundRect(-15,-8,30,16,4);g.fill();
- g.fillStyle='#222';g.fillRect(-2,-6,9,12);
- g.fillStyle='#ffd54a';g.fillRect(12,-7,3,4);g.fillRect(12,3,3,4);
- g.restore();
- if(msg){g.fillStyle='#fff';g.font='bold 80px sans-serif';g.textAlign='center';g.textBaseline='middle';g.strokeStyle='#000';g.lineWidth=6;g.strokeText(msg,cx,cy);g.fillText(msg,cx,cy)}
- requestAnimationFrame(loop)}
-reset();requestAnimationFrame(loop);
+ sky();
+ const base=segAt(pos),bp=(pos%SL)/SL,pp=((pos+PZ)%SL)/SL,py=ease(ps.p1.w.y,ps.p2.w.y,pp);
+ let x=0,dx=-base.curve*bp,maxy=H;const dr=[];
+ for(let n=0;n<DD;n++){
+  const s2=segs[(base.i+n)%N],lp=s2.i<base.i,cz=pos-(lp?trackLen:0);
+  proj(s2.p1,px*RW-x,py+CH,cz);proj(s2.p2,px*RW-x-dx,py+CH,cz);
+  x+=dx;dx+=s2.curve;
+  if(s2.p1.c.z<=CD||s2.p2.s.y>=s2.p1.s.y||s2.p2.s.y>=maxy)continue;
+  sgm(s2,n);maxy=s2.p1.s.y;dr.push(s2)}
+ for(let k=dr.length-1;k>=0;k--)spr(dr[k]);
+ const pw=CARW*W/2000,bob=Math.sin(t/60)*(Math.abs(px)>1?2.5:.6)*Math.min(1,pct*2);
+ car(g,W/2,H*.9+bob,pw,K,(Rk-Lk)*.05*Math.min(1,pct*2),Bk);
+ fx(dt);
+ /* HUD */
+ g.fillStyle='#0006';g.fillRect(W*.1,46,W*.8,6);
+ const dot=(p,c)=>{g.fillStyle=c;g.beginPath();g.arc(W*.1+W*.8*Math.max(0,Math.min(1,p/trackLen)),49,5,0,7);g.fill()};
+ for(const k in opp)dot(opp[k].z,'#fff');dot(pos,'#ffd54a');
+ const all=1+Object.keys(opp).length,rk=1+Object.values(opp).filter(o=>o.z>pos).length;
+ $('ps').textContent='🏁 '+rk+'/'+all;
+ $('tm').textContent=started?((t-cd)/1000).toFixed(1)+'s':'0.0s';
+ $('sp').textContent=Math.round(spd/KMH)+' km/h';
+ const tl=cd-t;let m='';if(tl>0&&tl<=3000)m=Math.ceil(tl/1000);else if(tl<=0&&tl>-900)m='GO!';
+ if(m!==''){g.fillStyle='#fff';g.font='bold 80px sans-serif';g.textAlign='center';g.textBaseline='middle';g.strokeStyle='#000';g.lineWidth=6;g.strokeText(m,W/2,H*.4);g.fillText(m,W/2,H*.4);g.textBaseline='alphabetic'}}
+requestAnimationFrame(frame);
+
+/* ---------- কন্ট্রোল ---------- */
+const hold=(el,fn)=>{el.onpointerdown=()=>fn(1);['onpointerup','onpointerleave','onpointercancel'].forEach(e=>el[e]=()=>fn(0))};
+hold($('L'),v=>Lk=v);hold($('R'),v=>Rk=v);hold($('BR'),v=>Bk=v);
+addEventListener('keydown',e=>{if(e.key=='ArrowLeft')Lk=1;if(e.key=='ArrowRight')Rk=1;if(e.key=='ArrowDown')Bk=1});
+addEventListener('keyup',e=>{if(e.key=='ArrowLeft')Lk=0;if(e.key=='ArrowRight')Rk=0;if(e.key=='ArrowDown')Bk=0});
+
+/* ---------- নেটওয়ার্ক ---------- */
+s.on('connect',()=>{if(!localStorage.rsid)return location.href='/';s.emit('login',localStorage.rsid)});
+s.on('badid',()=>location.href='/');
+s.on('rgone',()=>{alert('রেস পাওয়া যায়নি');location.href='/'});
+s.on('me',u=>{ME=u;
+ if(!joined){joined=1;const q=new URLSearchParams(location.search).get('room');q?s.emit('rjoin',q):s.emit('rsolo')}});
+s.on('err',t=>alert(t));
+s.on('rs',r=>{RS=r;lobby();
+ if(r.state=='lobby'&&mode!='lobby'){mode='lobby';fin=0;['hud','L','R','BR','res','wt'].forEach(i=>$(i).hidden=1);$('lob').hidden=0}
+ $('again').hidden=!(r.state=='done'&&r.host==ME.id)});
+s.on('rgo',d=>{
+ M=MAPS[d.map];build(M.seed);
+ opp={};d.ps.forEach(p=>{if(p.uid!=ME.id)opp[p.uid]={name:p.name,car:p.car,z:0,x:0,v:0,tz:0,tx:0,tt:0}});
+ K=CARS[d.ps.find(p=>p.uid==ME.id).car];
+ pos=0;px=0;spd=0;fin=0;bg=0;RES=[];cd=performance.now()+4000;
+ mode='race';$('lob').hidden=1;$('res').hidden=1;$('wt').hidden=1;
+ ['hud','L','R','BR'].forEach(i=>$(i).hidden=0)});
+s.on('rp',d=>{const o=opp[d.u];if(o){o.tz=d.z;o.tx=d.x;o.v=d.v;o.tt=performance.now()}});
+s.on('rres',l=>{RES=l;if(fin)showRes()});
+function showRes(){
+ $('rl').innerHTML=RES.map((r,i)=>'<div>'+(i+1)+'. '+r.name+' — '+(r.fin/1000).toFixed(2)+'s'+(r.prize?' 🪙+'+r.prize:'')+'</div>').join('');
+ $('res').hidden=0;$('wt').hidden=1}
+$('rd').onclick=()=>s.emit('rready');
+$('again').onclick=()=>s.emit('rreset');
+$('hm').onclick=$('hm2').onclick=()=>location.href='/';
+setInterval(()=>{if(fin&&RES.length&&$('res').hidden)showRes()},1500);
+
+/* ---------- লবি ---------- */
+function lobby(){
+ const r=RS;if(!r||!ME)return;
+ const my=r.ps.find(p=>p.uid==ME.id)||{car:0};
+ $('pl').innerHTML=r.ps.map(p=>'<div class="pr'+(p.on?'':' off')+'"><img src="'+(p.pic||dflt(p.name))+'"><b>'+p.name+(p.uid==r.host?' 👑':'')+'</b><small>'+CARS[p.car].n+'</small><span>'+(p.ready?'✅':'⏳')+'</span></div>').join('');
+ $('cars').innerHTML=CARS.map((k,i)=>'<button class="cb'+(my.car==i?' on':'')+'" onclick="s.emit(\'rcar\','+i+')"><span style="color:'+k.c+'">●</span> '+k.n+'<small>'+k.top+' km/h</small></button>').join('');
+ $('maps').innerHTML=MAPS.map((m,i)=>'<button class="cb'+(r.map==i?' on':'')+'"'+(r.host==ME.id?'':' disabled')+' onclick="s.emit(\'rmap\','+i+')">'+m.n+'</button>').join('');
+ $('rd').textContent=my.ready?'❌ রেডি বাতিল':'✅ রেডি';
+ $('st').textContent=r.state=='lobby'?(r.host==ME.id?'ম্যাপ বেছে সবাই রেডি হলে রেস শুরু হবে':'হোস্ট ম্যাপ বেছে নেবেন'):'রেস চলছে…';
+ const k=CARS[my.car],st=n=>'★'.repeat(n)+'☆'.repeat(5-n);
+ $('cs').textContent='🚀 '+k.top+' km/h   ⚡ '+st(Math.round(k.acc*15))+'   🎯 '+st(Math.min(5,Math.round(k.hd*4.3)));
+ const p=$('pv').getContext('2d');
+ p.clearRect(0,0,240,130);car(p,120,112,150,k,0,0)}
 </script></body></html>
