@@ -8,323 +8,870 @@
 <title>RS LUDO</title>
 
 <style>
+:root {
+  --bg:#10101d;
+  --panel:#201e32;
+  --panel2:#292541;
+  --gold:#ffd54a;
+  --purple:#8062ad;
+  --muted:#aaa8bd;
+  --border:#403957;
+}
+
 * {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
 }
 
 body {
-  background: #10101d;
-  color: white;
-  font-family: Arial, sans-serif;
-  min-height: 100vh;
-}
-
-.container {
-  max-width: 500px;
-  margin: auto;
-  padding: 18px;
-}
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 22px;
-}
-
-.logo {
-  color: #ffd54a;
-  font-size: 27px;
-  font-weight: 900;
-}
-
-.coins {
-  background: #25243a;
-  border: 1px solid #ffd54a;
-  color: #ffd54a;
-  padding: 10px 14px;
-  border-radius: 20px;
-  font-weight: bold;
-}
-
-.profile {
-  background: linear-gradient(135deg,#292444,#17172b);
-  border: 1px solid #51436e;
-  border-radius: 18px;
-  padding: 18px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 22px;
-}
-
-.avatar {
-  width: 58px;
-  height: 58px;
-  background: #ffd54a;
-  color: #17172b;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 23px;
-  font-weight: bold;
-}
-
-.profile h3 {
-  margin-bottom: 5px;
-}
-
-.muted {
-  color: #aaa8bd;
-  font-size: 13px;
-}
-
-.section-title {
-  font-size: 19px;
-  margin: 22px 0 12px;
-  color: #fff;
-}
-
-.lobby {
-  background: linear-gradient(135deg,#47316d,#25264c);
-  padding: 20px;
-  border-radius: 18px;
-  text-align: center;
-  border: 1px solid #8062ad;
-}
-
-.lobby h2 {
-  color: #ffd54a;
-  margin-bottom: 8px;
-}
-
-.players {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin: 18px 0;
-}
-
-.player {
-  background: #ffffff12;
-  border: 1px solid #ffffff22;
-  border-radius: 12px;
-  padding: 14px 5px;
-  font-size: 13px;
-}
-
-.player strong {
-  display: block;
-  font-size: 20px;
-  margin-bottom: 5px;
+  background:
+    radial-gradient(ellipse at top,#282044 0%,#10101d 55%);
+  color:white;
+  font-family:Arial,sans-serif;
+  min-height:100vh;
 }
 
 button {
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: bold;
-  border-radius: 12px;
-  padding: 13px;
+  cursor:pointer;
+  border:0;
+  font-weight:bold;
+  font-size:14px;
+  transition:.2s;
 }
 
-.primary {
-  background: #ffd54a;
-  color: #17172b;
-  width: 100%;
+button:active {
+  transform:scale(.96);
 }
 
-.secondary {
-  background: #34334c;
-  color: white;
-  border: 1px solid #69647f;
+.app {
+  width:min(1250px,100%);
+  margin:auto;
+  padding:20px;
 }
 
-.actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+/* HEADER */
+
+.header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  margin-bottom:20px;
+}
+
+.brand {
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.brand-logo {
+  width:48px;
+  height:48px;
+  border-radius:15px;
+  display:grid;
+  place-items:center;
+  background:linear-gradient(135deg,#ffe875,#e8a900);
+  color:#171426;
+  font-size:23px;
+  font-weight:1000;
+  box-shadow:0 5px 20px #ffd54a35;
+}
+
+.brand h1 {
+  color:var(--gold);
+  font-size:27px;
+  letter-spacing:1px;
+}
+
+.brand small {
+  display:block;
+  color:var(--muted);
+  font-size:10px;
+  margin-top:3px;
+}
+
+.header-right {
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.balance {
+  padding:12px 17px;
+  background:#29243d;
+  color:var(--gold);
+  border:1px solid var(--gold);
+  border-radius:15px;
+  font-size:17px;
+  font-weight:bold;
+}
+
+.profile-mini {
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:15px;
+  padding:9px 13px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+}
+
+.avatar-mini {
+  width:35px;
+  height:35px;
+  background:var(--gold);
+  color:#171426;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  font-weight:900;
+}
+
+.profile-mini span {
+  font-weight:bold;
+}
+
+/* TOP CARDS */
+
+.top-cards {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:15px;
+  margin-bottom:22px;
+}
+
+.info-card {
+  background:linear-gradient(135deg,#292442,#19182b);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:17px;
+  display:flex;
+  align-items:center;
+  gap:13px;
+  min-width:0;
+}
+
+.info-icon {
+  width:49px;
+  height:49px;
+  flex-shrink:0;
+  display:grid;
+  place-items:center;
+  background:#ffffff12;
+  border-radius:14px;
+  font-size:25px;
+}
+
+.info-card h3 {
+  font-size:15px;
+  margin-bottom:5px;
+}
+
+.info-card p {
+  color:var(--muted);
+  font-size:12px;
+}
+
+.bonus-card {
+  border-color:#8d7035;
+}
+
+.bonus-card button {
+  margin-left:auto;
+  padding:10px 15px;
+  background:var(--gold);
+  border-radius:10px;
+  color:#171426;
+  white-space:nowrap;
+}
+
+/* MAIN LOGO FRAME */
+
+.hero {
+  position:relative;
+  overflow:hidden;
+  border:1px solid #8062ad;
+  border-radius:24px;
+  padding:24px 15px;
+  text-align:center;
+  background:
+    radial-gradient(circle at 50% 40%,#59407d,#29213f 50%,#19172b);
+  box-shadow:0 12px 35px #0005;
+  margin-bottom:25px;
+}
+
+.hero::before,
+.hero::after {
+  content:"";
+  position:absolute;
+  width:170px;
+  height:170px;
+  border:1px solid #ffffff12;
+  border-radius:50%;
+}
+
+.hero::before {
+  top:-100px;
+  left:-50px;
+}
+
+.hero::after {
+  bottom:-120px;
+  right:-40px;
+}
+
+.hero-tag {
+  display:inline-block;
+  background:#ffffff14;
+  border:1px solid #ffffff25;
+  color:var(--gold);
+  padding:6px 14px;
+  border-radius:20px;
+  font-size:11px;
+  letter-spacing:2px;
+  margin-bottom:13px;
+}
+
+.hero h2 {
+  color:var(--gold);
+  font-size:clamp(25px,5vw,42px);
+  font-weight:1000;
+  letter-spacing:2px;
+  text-shadow:0 4px 15px #0007;
+}
+
+.hero-sub {
+  color:#d0c9e2;
+  font-size:13px;
+  margin-top:7px;
+}
+
+/* LUDO BOARD LOGO */
+
+.board-wrap {
+  display:flex;
+  justify-content:center;
+  margin:20px auto 14px;
+}
+
+.board {
+  width:180px;
+  height:180px;
+  background:#f8f5ed;
+  padding:8px;
+  border:5px solid #e2c66e;
+  border-radius:15px;
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  grid-template-rows:1fr 1fr 1fr;
+  box-shadow:0 10px 30px #0008;
+  transform:rotate(-2deg);
+}
+
+.home {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;
+  gap:5px;
+  padding:7px;
+}
+
+.home span {
+  border-radius:50%;
+  border:3px solid #ffffffaa;
+  background:#ffffff35;
+}
+
+.red {background:#ed4141;}
+.green {background:#24b96c;}
+.yellow {background:#f5c839;}
+.blue {background:#3985ed;}
+
+.center-board {
+  display:grid;
+  place-items:center;
+  background:conic-gradient(
+    #f5c839 0deg 90deg,
+    #3985ed 90deg 180deg,
+    #24b96c 180deg 270deg,
+    #ed4141 270deg 360deg
+  );
+}
+
+.center-board span {
+  width:0;
+  height:0;
+  border-left:17px solid transparent;
+  border-right:17px solid transparent;
+  border-bottom:25px solid white;
+  filter:drop-shadow(0 2px 2px #333);
+}
+
+.hero-actions {
+  display:flex;
+  justify-content:center;
+  gap:12px;
+  flex-wrap:wrap;
+  position:relative;
+  z-index:1;
+}
+
+.hero-actions button {
+  padding:13px 27px;
+  border-radius:12px;
+  background:var(--gold);
+  color:#171426;
+}
+
+.hero-actions .outline {
+  background:#ffffff12;
+  color:white;
+  border:1px solid #ffffff55;
+}
+
+/* SECTION TITLES */
+
+.section-heading {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:14px;
+}
+
+.section-heading h2 {
+  font-size:19px;
+}
+
+.section-heading span {
+  color:var(--gold);
+  font-size:11px;
+}
+
+/* TWO SIDES */
+
+.main-grid {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:20px;
+  align-items:start;
+}
+
+/* GAME SIDE */
+
+.panel {
+  background:#191829;
+  border:1px solid #38344e;
+  border-radius:20px;
+  padding:17px;
+  min-width:0;
 }
 
 .game-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
 }
 
 .game-card {
-  background: #201f32;
-  border: 1px solid #39364f;
-  padding: 17px 12px;
-  border-radius: 16px;
-  text-align: center;
+  min-width:0;
+  background:linear-gradient(145deg,#29263e,#1e1c30);
+  border:1px solid #48415f;
+  border-radius:16px;
+  padding:17px 9px;
+  text-align:center;
+  transition:.2s;
+}
+
+.game-card:hover {
+  border-color:var(--gold);
+  transform:translateY(-3px);
 }
 
 .game-icon {
-  font-size: 35px;
-  margin-bottom: 10px;
+  font-size:34px;
+  margin-bottom:11px;
 }
 
 .game-card h3 {
-  font-size: 15px;
-  margin-bottom: 7px;
+  font-size:13px;
+  line-height:1.4;
+  min-height:36px;
+}
+
+.game-card p {
+  color:var(--muted);
+  font-size:11px;
+  margin:5px 0 12px;
 }
 
 .game-card button {
-  width: 100%;
-  margin-top: 12px;
-  background: #ffd54a;
-  color: #17172b;
+  width:100%;
+  background:var(--gold);
+  color:#171426;
+  padding:11px 5px;
+  border-radius:9px;
 }
 
-.social {
-  background: #201f32;
-  padding: 16px;
-  border-radius: 16px;
-  margin-top: 14px;
+/* FRIEND SIDE */
+
+.friend-actions {
+  display:grid;
+  gap:10px;
 }
 
-.social-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
+.action-card {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  background:linear-gradient(135deg,#29263e,#201e32);
+  border:1px solid #45405d;
+  border-radius:14px;
+  padding:14px;
+}
+
+.action-card h3 {
+  font-size:14px;
+  margin-bottom:5px;
+}
+
+.action-card p {
+  font-size:11px;
+  color:var(--muted);
+}
+
+.action-card button {
+  padding:11px 13px;
+  background:#39344f;
+  color:white;
+  border:1px solid #71688c;
+  border-radius:10px;
+  white-space:nowrap;
+}
+
+.action-card .gold-btn {
+  background:var(--gold);
+  color:#171426;
+  border:0;
+}
+
+.friend-list {
+  margin-top:15px;
+  padding:14px;
+  background:#211f33;
+  border:1px solid #45405d;
+  border-radius:14px;
+}
+
+.friend-list h3 {
+  font-size:14px;
+  margin-bottom:12px;
+}
+
+.friend-empty {
+  text-align:center;
+  color:var(--muted);
+  font-size:12px;
+  padding:15px 5px;
 }
 
 .mic {
-  background: #34334c;
-  color: white;
-  border: 1px solid #77718e;
+  background:#39344f !important;
+  color:white !important;
 }
+
+.mic.active {
+  background:#177e50 !important;
+  border-color:#36d58d;
+}
+
+/* ADVERTISEMENT */
+
+.ad-card {
+  margin-top:23px;
+  min-height:105px;
+  background:linear-gradient(120deg,#29243f,#19182b);
+  border:1px dashed #74618d;
+  border-radius:18px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+  gap:7px;
+  text-align:center;
+  padding:18px;
+}
+
+.ad-card h3 {
+  color:var(--gold);
+  font-size:16px;
+}
+
+.ad-card p {
+  color:var(--muted);
+  font-size:11px;
+}
+
+/* FOOTER */
 
 .footer {
-  text-align: center;
-  color: #77758a;
-  font-size: 12px;
-  padding: 25px 0 10px;
+  text-align:center;
+  color:#77758a;
+  font-size:12px;
+  padding:25px 0 10px;
+  line-height:1.8;
 }
 
+/* MOBILE */
+
+@media(max-width:650px) {
+  .app {
+    padding:13px;
+  }
+
+  .brand h1 {
+    font-size:21px;
+  }
+
+  .brand-logo {
+    width:40px;
+    height:40px;
+  }
+
+  .balance {
+    padding:10px;
+    font-size:13px;
+  }
+
+  .profile-mini {
+    padding:7px;
+  }
+
+  .profile-mini span {
+    display:none;
+  }
+
+  .top-cards {
+    gap:9px;
+  }
+
+  .info-card {
+    padding:11px 8px;
+    gap:7px;
+  }
+
+  .info-icon {
+    width:35px;
+    height:35px;
+    font-size:18px;
+  }
+
+  .info-card h3 {
+    font-size:12px;
+  }
+
+  .info-card p {
+    font-size:10px;
+  }
+
+  .bonus-card button {
+    padding:8px;
+    font-size:10px;
+  }
+
+  .hero {
+    padding:20px 10px;
+  }
+
+  .board {
+    width:150px;
+    height:150px;
+  }
+
+  .main-grid {
+    grid-template-columns:1fr 1fr;
+    gap:9px;
+  }
+
+  .panel {
+    padding:9px;
+    border-radius:15px;
+  }
+
+  .section-heading h2 {
+    font-size:14px;
+  }
+
+  .section-heading span {
+    font-size:9px;
+  }
+
+  .game-grid {
+    gap:7px;
+  }
+
+  .game-card {
+    padding:12px 5px;
+  }
+
+  .game-icon {
+    font-size:27px;
+  }
+
+  .game-card h3 {
+    font-size:11px;
+  }
+
+  .game-card p {
+    font-size:9px;
+  }
+
+  .game-card button {
+    font-size:10px;
+    padding:9px 3px;
+  }
+
+  .action-card {
+    padding:9px 6px;
+    gap:4px;
+  }
+
+  .action-card h3 {
+    font-size:11px;
+  }
+
+  .action-card p {
+    font-size:9px;
+  }
+
+  .action-card button {
+    padding:9px 7px;
+    font-size:10px;
+  }
+
+  .friend-list {
+    padding:10px 6px;
+  }
+
+  .friend-list h3 {
+    font-size:11px;
+  }
+}
+
+@media(max-width:350px) {
+  .main-grid {
+    grid-template-columns:1fr;
+  }
+}
 </style>
 </head>
 
 <body>
-<div class="container">
+<div class="app">
 
-  <header class="header">
-    <div class="logo">RS LUDO</div>
-    <div class="coins">🪙 <span id="coins">1000</span></div>
-  </header>
+<!-- HEADER -->
+<header class="header">
+  <div class="brand">
+    <div class="brand-logo">RS</div>
+    <div>
+      <h1>RS LUDO</h1>
+      <small>POWERED BY RS GAMING</small>
+    </div>
+  </div>
 
-  <section class="profile">
-    <div class="avatar">RS</div>
+  <div class="header-right">
+    <div class="balance">
+      🪙 <span id="coins">1000</span>
+    </div>
+
+    <div class="profile-mini">
+      <div class="avatar-mini">RS</div>
+      <span>Profile</span>
+    </div>
+  </div>
+</header>
+
+<!-- PROFILE AND BONUS -->
+<section class="top-cards">
+
+  <div class="info-card">
+    <div class="info-icon">👤</div>
     <div>
       <h3>RS Rana</h3>
-      <p class="muted">Level 1 · New Player</p>
-      <p class="muted">Player ID: RS-0001</p>
+      <p>Level 1 · New Player</p>
+      <p>Player ID: RS-0001</p>
+    </div>
+  </div>
+
+  <div class="info-card bonus-card">
+    <div class="info-icon">🎁</div>
+    <div>
+      <h3>Daily Bonus</h3>
+      <p>Get your daily rewards</p>
+    </div>
+    <button onclick="claimBonus()">CLAIM</button>
+  </div>
+
+</section>
+
+<!-- MAIN LUDO FRAME -->
+<section class="hero">
+
+  <div class="hero-tag">WELCOME TO RS GAMING</div>
+
+  <h2>RS LUDO</h2>
+  <p class="hero-sub">THE ULTIMATE MULTIPLAYER EXPERIENCE</p>
+
+  <div class="board-wrap">
+    <div class="board">
+      <div class="home red">
+        <span></span><span></span>
+        <span></span><span></span>
+      </div>
+
+      <div class="home green">
+        <span></span><span></span>
+        <span></span><span></span>
+      </div>
+
+      <div class="home yellow">
+        <span></span><span></span>
+        <span></span><span></span>
+      </div>
+
+      <div class="home blue">
+        <span></span><span></span>
+        <span></span><span></span>
+      </div>
+
+      <div class="center-board">
+        <span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-actions">
+    <button onclick="openGame('RS LUDO')">🎲 PLAY LUDO</button>
+    <button class="outline" onclick="createRoom()">+ CREATE ROOM</button>
+  </div>
+
+</section>
+
+<!-- TWO SIDES -->
+<div class="main-grid">
+
+  <!-- LEFT: GAMES -->
+  <section class="panel">
+
+    <div class="section-heading">
+      <h2>🔥 More Games</h2>
+      <span>4 GAMES</span>
+    </div>
+
+    <div class="game-grid">
+
+      <div class="game-card">
+        <div class="game-icon">🎲</div>
+        <h3>RS LUDO</h3>
+        <p>Classic Multiplayer</p>
+        <button onclick="openGame('RS LUDO')">PLAY</button>
+      </div>
+
+      <div class="game-card">
+        <div class="game-icon">🎯</div>
+        <h3>RS CARROM</h3>
+        <p>Carrom Challenge</p>
+        <button onclick="openGame('RS CARROM')">PLAY</button>
+      </div>
+
+      <div class="game-card">
+        <div class="game-icon">🏎️</div>
+        <h3>RS MICRO RACING</h3>
+        <p>Racing Challenge</p>
+        <button onclick="openGame('RS MICRO RACING')">PLAY</button>
+      </div>
+
+      <div class="game-card">
+        <div class="game-icon">🎮</div>
+        <h3>RS BATTLE ROYALE</h3>
+        <p>Battle Challenge</p>
+        <button onclick="openGame('RS BATTLE ROYALE')">PLAY</button>
+      </div>
+
     </div>
   </section>
 
-  <h2 class="section-title">🎮 Ludo Multiplayer</h2>
+  <!-- RIGHT: FRIENDS -->
+  <section class="panel">
 
-  <section class="lobby">
-    <h2>🏆 RS LUDO ROOM</h2>
-    <p class="muted">Play with friends and other players</p>
+    <div class="section-heading">
+      <h2>👥 Friends</h2>
+      <span>PLAY TOGETHER</span>
+    </div>
 
-    <div class="players">
-      <div class="player">
-        <strong>👤</strong>
-        RS Rana
+    <div class="friend-actions">
+
+      <div class="action-card">
+        <div>
+          <h3>👥 Invite Friends</h3>
+          <p>Invite your friends</p>
+        </div>
+        <button class="gold-btn" onclick="inviteFriend()">INVITE</button>
       </div>
-      <div class="player">
-        <strong>👤</strong>
-        Waiting...
+
+      <div class="action-card">
+        <div>
+          <h3>🏆 Create Room</h3>
+          <p>Start a new room</p>
+        </div>
+        <button class="gold-btn" onclick="createRoom()">CREATE</button>
       </div>
-      <div class="player">
-        <strong>👤</strong>
-        Waiting...
+
+      <div class="action-card">
+        <div>
+          <h3>🚪 Join Room</h3>
+          <p>Enter room code</p>
+        </div>
+        <button onclick="joinRoom()">JOIN</button>
       </div>
-      <div class="player">
-        <strong>👤</strong>
-        Waiting...
+
+      <div class="action-card">
+        <div>
+          <h3>🎙️ Voice Chat</h3>
+          <p id="micStatus">Microphone is off</p>
+        </div>
+        <button class="mic" id="micButton" onclick="toggleMic()">OFF</button>
       </div>
+
     </div>
 
-    <div class="actions">
-      <button class="primary" onclick="createRoom()">
-        + Create Room
-      </button>
-      <button class="secondary" onclick="joinRoom()">
-        Join Room
-      </button>
-    </div>
-  </section>
-
-  <h2 class="section-title">🔥 More Games</h2>
-
-  <section class="game-grid">
-
-    <div class="game-card">
-      <div class="game-icon">🎲</div>
-      <h3>RS LUDO</h3>
-      <p class="muted">Classic Multiplayer</p>
-      <button onclick="openGame('RS LUDO')">PLAY</button>
-    </div>
-
-    <div class="game-card">
-      <div class="game-icon">🎯</div>
-      <h3>RS CARROM</h3>
-      <p class="muted">Carrom Challenge</p>
-      <button onclick="openGame('RS CARROM')">PLAY</button>
-    </div>
-
-    <div class="game-card">
-      <div class="game-icon">🏎️</div>
-      <h3>RS MICRO RACING</h3>
-      <p class="muted">Racing Challenge</p>
-      <button onclick="openGame('RS MICRO RACING')">PLAY</button>
-    </div>
-
-    <div class="game-card">
-      <div class="game-icon">🎮</div>
-      <h3>RS BATTLE ROYALE</h3>
-      <p class="muted">Battle Challenge</p>
-      <button onclick="openGame('RS BATTLE ROYALE')">PLAY</button>
+    <div class="friend-list">
+      <h3>🟢 Friends List</h3>
+      <div class="friend-empty">
+        No friends online yet
+        <br>
+        Invite friends to play together!
+      </div>
     </div>
 
   </section>
 
-  <h2 class="section-title">👥 Friends & Voice</h2>
+</div>
 
-  <section class="social">
-    <div class="social-row">
-      <div>
-        <h3>Invite Friends</h3>
-        <p class="muted">Play together with friends</p>
-      </div>
-      <button class="secondary" onclick="inviteFriend()">
-        INVITE
-      </button>
-    </div>
-  </section>
+<!-- ADVERTISEMENT -->
+<section class="ad-card">
+  <h3>📢 RS GAMING ADVERTISEMENT</h3>
+  <p>Your advertisement will appear here</p>
+  <p>Premium Advertising Space</p>
+</section>
 
-  <section class="social">
-    <div class="social-row">
-      <div>
-        <h3>🎙️ Voice Chat</h3>
-        <p class="muted" id="micStatus">Microphone is off</p>
-      </div>
-      <button class="mic" id="micButton" onclick="toggleMic()">
-        🎙️ OFF
-      </button>
-    </div>
-  </section>
-
-  <footer class="footer">
-    <p>© 2026 RS LUDO</p>
-    <p>Powered by RS Gaming</p>
-  </footer>
+<footer class="footer">
+  <p>© 2026 RS LUDO</p>
+  <p>Powered by RS Gaming</p>
+  <p>Play · Connect · Enjoy</p>
+</footer>
 
 </div>
 
@@ -336,7 +883,7 @@ function createRoom() {
 function joinRoom() {
   const room = prompt("Enter Room ID:");
   if (room) {
-    alert("Room joining will be connected to the backend.");
+    alert("Room joining will be connected in the next development stage.");
   }
 }
 
@@ -355,7 +902,12 @@ function inviteFriend() {
   }
 }
 
+function claimBonus() {
+  alert("Daily bonus will be connected to the server.");
+}
+
 let micOn = false;
+let micStream = null;
 
 async function toggleMic() {
   const button = document.getElementById("micButton");
@@ -363,21 +915,28 @@ async function toggleMic() {
 
   if (!micOn) {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio:true
       });
 
-      stream.getTracks().forEach(track => track.stop());
-
       micOn = true;
-      button.textContent = "🎙️ ON";
+      button.textContent = "ON";
+      button.classList.add("active");
       status.textContent = "Microphone permission granted";
-    } catch (error) {
+
+    } catch(error) {
       alert("Microphone permission is required.");
     }
+
   } else {
+    if (micStream) {
+      micStream.getTracks().forEach(track => track.stop());
+      micStream = null;
+    }
+
     micOn = false;
-    button.textContent = "🎙️ OFF";
+    button.textContent = "OFF";
+    button.classList.remove("active");
     status.textContent = "Microphone is off";
   }
 }
