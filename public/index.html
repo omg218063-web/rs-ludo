@@ -1,0 +1,135 @@
+<!DOCTYPE html><html lang="bn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ফানি লুডু</title>
+<style>
+body{margin:0;background:#1b1b2f;color:#fff;font-family:sans-serif;text-align:center}
+button,input{font-size:18px;padding:10px 14px;margin:4px;border-radius:10px;border:0}
+button{background:#ffb300}button:disabled{opacity:.4}
+#c{width:100%;max-width:520px;touch-action:manipulation}
+</style></head><body>
+<div id="home"><h1>🎲 ফানি লুডু</h1>
+<input id="nm" placeholder="আপনার নাম"><br>
+<button id="cr">নতুন রুম বানাও</button><br>
+<input id="cd" placeholder="রুম কোড" maxlength="4"><button id="jn">জয়েন</button></div>
+<div id="game" hidden>
+<div id="info"></div>
+<canvas id="c" width="600" height="600"></canvas>
+<div id="msg" style="min-height:28px;font-size:18px"></div>
+<div><button id="roll">🎲 ডাইস ফেলো</button><button id="mic">🎙️ মাইক চালু করো</button></div>
+<button id="st" hidden>খেলা শুরু করো</button><button id="sh">🔗 লিংক শেয়ার</button>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const s=io(),$=id=>document.getElementById(id),cv=$('c'),g=cv.getContext('2d'),U=40;
+const C=['#e53935','#43a047','#fdd835','#1e88e5'],SAFE=[0,8,13,21,26,34,39,47];
+const PATH=[[1,6],[2,6],[3,6],[4,6],[5,6],[6,5],[6,4],[6,3],[6,2],[6,1],[6,0],[7,0],[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[9,6],[10,6],[11,6],[12,6],[13,6],[14,6],[14,7],[14,8],[13,8],[12,8],[11,8],[10,8],[9,8],[8,9],[8,10],[8,11],[8,12],[8,13],[8,14],[7,14],[6,14],[6,13],[6,12],[6,11],[6,10],[6,9],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8],[0,7],[0,6]];
+const HOME=[[[1,7],[2,7],[3,7],[4,7],[5,7]],[[7,1],[7,2],[7,3],[7,4],[7,5]],[[13,7],[12,7],[11,7],[10,7],[9,7]],[[7,13],[7,12],[7,11],[7,10],[7,9]]];
+const BASE=[[0,0],[9,0],[9,9],[0,9]];
+let S=null,mic=null;
+const me=()=>S&&S.players.find(p=>p.id==s.id);
+const mine=()=>S&&S.phase!='lobby'&&S.players[S.turn].id==s.id;
+const legal=(pl,d)=>pl.pieces.map((p,i)=>i).filter(i=>pl.pieces[i]<0?d==6:pl.pieces[i]+d<=56);
+
+function pos(pl,i){const p=pl.pieces[i],q=pl.seat;
+ if(p<0){const b=BASE[q];return[b[0]+2+(i%2)*2,b[1]+2+(i>>1)*2]}
+ if(p<=50){const c=PATH[(q*13+p)%52];return[c[0]+.5,c[1]+.5]}
+ if(p<=55){const c=HOME[q][p-51];return[c[0]+.5,c[1]+.5]}
+ return[7.5+(i-1.5)*.35,7.5]}
+
+function draw(){
+ g.clearRect(0,0,600,600);
+ BASE.forEach(([x,y],i)=>{g.fillStyle=C[i];g.fillRect(x*U,y*U,6*U,6*U);g.fillStyle='#fff';g.fillRect((x+1)*U,(y+1)*U,4*U,4*U)});
+ g.font='20px sans-serif';g.textAlign='center';g.textBaseline='middle';
+ PATH.forEach((c,i)=>{
+  const st=[0,13,26,39].indexOf(i);
+  g.fillStyle=st>=0?C[st]:'#fff';g.fillRect(c[0]*U,c[1]*U,U,U);
+  g.strokeStyle='#555';g.strokeRect(c[0]*U,c[1]*U,U,U);
+  if(SAFE.includes(i)&&st<0){g.fillStyle='#888';g.fillText('★',c[0]*U+U/2,c[1]*U+U/2)}});
+ HOME.forEach((h,i)=>h.forEach(c=>{g.fillStyle=C[i];g.fillRect(c[0]*U,c[1]*U,U,U);g.strokeStyle='#555';g.strokeRect(c[0]*U,c[1]*U,U,U)}));
+ g.fillStyle='#999';g.fillRect(6*U,6*U,3*U,3*U);
+ if(!S)return;
+ const m=mine()&&S.phase=='move'?legal(me(),S.dice):[];
+ S.players.forEach(pl=>pl.pieces.forEach((p,i)=>{
+  const [x,y]=pos(pl,i);
+  g.beginPath();g.arc(x*U,y*U,15,0,7);g.fillStyle=C[pl.seat];g.fill();
+  g.lineWidth=2;g.strokeStyle='#000';g.stroke();
+  if(pl.id==s.id&&m.includes(i)){g.beginPath();g.arc(x*U,y*U,19,0,7);g.lineWidth=4;g.strokeStyle='#fff';g.stroke()}
+  g.fillStyle='#000';g.font='bold 16px sans-serif';g.fillText(i+1,x*U,y*U);g.lineWidth=1}))}
+
+function render(){
+ const d=['','⚀','⚁','⚂','⚃','⚄','⚅'][S.dice]||'';
+ $('info').innerHTML='রুম: <b>'+S.code+'</b> '+d+'<br>'+S.players.map((p,i)=>'<span style="color:'+C[p.seat]+'">'+(S.phase!='lobby'&&i==S.turn?'▶ ':'')+p.name+(p.left?' (বের)':'')+'</span>').join(' | ');
+ $('msg').textContent=S.msg;
+ $('roll').disabled=!(mine()&&S.phase=='roll');
+ $('st').hidden=!(S.phase=='lobby'&&S.players[0].id==s.id&&S.players.length>1);
+ draw();
+ if(mine()&&S.phase=='move'){const l=legal(me(),S.dice);if(l.length==1)setTimeout(()=>{if(S.phase=='move'&&mine())s.emit('move',l[0])},700)}}
+
+/* ---------- লাইভ ভয়েস (WebRTC) ---------- */
+const pcs={};
+function mk(id,init){
+ const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+ const o=pcs[id]={pc,tr:null,q:Promise.resolve()};
+ pc.onicecandidate=e=>{if(e.candidate)s.emit('sig',id,{c:e.candidate})};
+ pc.ontrack=e=>{
+  let a=$('a'+id);
+  if(!a){a=document.createElement('audio');a.id='a'+id;a.autoplay=true;document.body.appendChild(a)}
+  a.srcObject=e.streams[0]||new MediaStream([e.track]);a.play().catch(()=>{})};
+ if(init){
+  pc.onnegotiationneeded=async()=>{
+   await pc.setLocalDescription(await pc.createOffer());
+   s.emit('sig',id,{d:pc.localDescription})};
+  o.tr=pc.addTransceiver('audio',{direction:'sendrecv'});
+  if(mic)o.tr.sender.replaceTrack(mic.getAudioTracks()[0])}
+ return o}
+
+s.on('sig',(id,data)=>{
+ const o=pcs[id]||mk(id,false);
+ o.q=o.q.then(async()=>{
+  try{
+   if(data.d){
+    await o.pc.setRemoteDescription(data.d);
+    if(data.d.type=='offer'){
+     const tr=o.pc.getTransceivers()[0];
+     tr.direction='sendrecv';o.tr=tr;
+     if(mic)tr.sender.replaceTrack(mic.getAudioTracks()[0]);
+     await o.pc.setLocalDescription(await o.pc.createAnswer());
+     s.emit('sig',id,{d:o.pc.localDescription})}
+   }else if(data.c){await o.pc.addIceCandidate(data.c)}
+  }catch(e){console.log(e)}})});
+
+function peers(){
+ const ids=S.players.filter(p=>p.id!=s.id&&!p.left).map(p=>p.id);
+ ids.forEach(id=>{if(!pcs[id]&&s.id<id)mk(id,true)});
+ Object.keys(pcs).forEach(id=>{if(!ids.includes(id)){pcs[id].pc.close();delete pcs[id];const a=$('a'+id);if(a)a.remove()}})}
+
+$('mic').onclick=async()=>{
+ document.querySelectorAll('audio').forEach(a=>a.play().catch(()=>{}));
+ if(!mic){
+  try{mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
+  catch(e){return alert('মাইকের অনুমতি দিন, তারপর আবার চাপুন')}
+  const t=mic.getAudioTracks()[0];
+  for(const k in pcs)if(pcs[k].tr)pcs[k].tr.sender.replaceTrack(t);
+  $('mic').textContent='🎙️ মাইক অন (মিউট করতে চাপুন)';
+ }else{
+  const t=mic.getAudioTracks()[0];t.enabled=!t.enabled;
+  $('mic').textContent=t.enabled?'🎙️ মাইক অন (মিউট করতে চাপুন)':'🔇 মিউট (চালু করতে চাপুন)'}};
+
+/* ---------- সংযোগ ---------- */
+s.on('state',st=>{S=st;$('home').hidden=1;$('game').hidden=0;render();peers()});
+s.on('err',t=>alert(t));
+$('cr').onclick=()=>s.emit('create',$('nm').value);
+$('jn').onclick=()=>s.emit('join',$('cd').value,$('nm').value);
+$('roll').onclick=()=>s.emit('roll');
+$('st').onclick=()=>s.emit('start');
+$('sh').onclick=()=>{const u=location.origin+'?room='+S.code;
+ if(navigator.share)navigator.share({title:'ফানি লুডু',url:u});else prompt('কপি করুন',u)};
+cv.onclick=e=>{
+ if(!S||!mine()||S.phase!='move')return;
+ const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)*600/r.width/U,y=(e.clientY-r.top)*600/r.height/U;
+ let b=-1,bd=1.2;
+ legal(me(),S.dice).forEach(i=>{const q=pos(me(),i),dd=Math.hypot(q[0]-x,q[1]-y);if(dd<bd){bd=dd;b=i}});
+ if(b>=0)s.emit('move',b)};
+const q=new URLSearchParams(location.search).get('room');if(q)$('cd').value=q;
+draw();
+</script></body></html>
