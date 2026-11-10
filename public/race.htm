@@ -1,0 +1,82 @@
+<!DOCTYPE html><html lang="bn"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>RS Race</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#12002b;color:#fff;font-family:sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;top:10px;left:0;right:0;display:flex;justify-content:space-around;font-size:18px;font-weight:700;text-shadow:0 2px 4px #000}
+.ctl{position:fixed;bottom:0;width:50%;height:45%;display:flex;align-items:flex-end;justify-content:center;font-size:56px;padding-bottom:24px;opacity:.45}
+#L{left:0}#R{right:0}
+#ov{position:fixed;inset:0;background:#000b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:19px;text-align:center;padding:16px}
+#ov[hidden]{display:none}
+button{font-size:20px;padding:12px 28px;border:0;border-radius:16px;background:linear-gradient(#ffd54a,#ff9800);color:#2b0050;font-weight:700}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="hud"><span id="lp">ল্যাপ 1/5</span><span id="tm">0.0s</span><span id="sp">0 km/h</span></div>
+<div class="ctl" id="L">◀</div><div class="ctl" id="R">▶</div>
+<div id="ov"><h1>🏁 RS রেস</h1>
+<p id="t">৫ ল্যাপ, সবচেয়ে কম সময়ে শেষ করুন!<br>বাম বা ডান পাশে চেপে ধরে গাড়ি ঘোরান।<br>রাস্তার বাইরে গেলে গাড়ি ধীর হয়।</p>
+<button id="go">▶ শুরু</button><button id="hm">🏠 হোম</button></div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const $=i=>document.getElementById(i),cv=$('c'),g=cv.getContext('2d'),s=io();
+const LAPS=5,TAU=Math.PI*2;
+let W,H,cx,cy,rx,ry,rw,L=0,R=0,run=0,car,prev,prog,t0,last=0,msg='',best=+localStorage.rsbest||0;
+function rs(){W=cv.width=innerWidth;H=cv.height=innerHeight;cx=W/2;cy=H/2;rx=W*.36;ry=H*.33;rw=Math.min(rx,ry)*.55}
+addEventListener('resize',rs);rs();
+s.on('connect',()=>{const i=localStorage.rsid;if(i)s.emit('login',i)});
+s.on('err',m=>{$('t').innerHTML+='<br>'+m});
+const set=(k,v)=>{if(k=='L')L=v;else R=v};
+[['L',$('L')],['R',$('R')]].forEach(([k,el])=>{
+ el.onpointerdown=()=>set(k,1);
+ ['onpointerup','onpointerleave','onpointercancel'].forEach(e=>el[e]=()=>set(k,0))});
+addEventListener('keydown',e=>{if(e.key=='ArrowLeft')L=1;if(e.key=='ArrowRight')R=1});
+addEventListener('keyup',e=>{if(e.key=='ArrowLeft')L=0;if(e.key=='ArrowRight')R=0});
+const phi=(x,y)=>Math.atan2((y-cy)/ry,(x-cx)/rx);
+const dev=(x,y)=>Math.abs(Math.hypot((x-cx)/rx,(y-cy)/ry)-1)*Math.min(rx,ry);
+function reset(){car={x:cx,y:cy+ry,a:0,v:0};prev=phi(car.x,car.y);prog=0;L=R=0}
+function start(){
+ reset();$('ov').hidden=1;run=0;let n=3;msg='3';
+ const iv=setInterval(()=>{n--;if(n>0)msg=''+n;else if(n==0)msg='🏁 GO!';else{clearInterval(iv);msg='';run=1;t0=performance.now()}},800)}
+$('go').onclick=start;
+$('hm').onclick=()=>location.href='/';
+function finish(){
+ run=0;const ms=performance.now()-t0;
+ if(!best||ms<best){best=ms;localStorage.rsbest=ms}
+ $('t').innerHTML='🏆 আপনার সময়: <b>'+(ms/1000).toFixed(2)+'s</b><br>সেরা সময়: '+(best/1000).toFixed(2)+'s';
+ $('go').textContent='🔁 আবার খেলুন';$('ov').hidden=0;
+ s.emit('racewin',Math.round(ms))}
+function loop(t){
+ const dt=Math.min(.05,(t-last)/1000);last=t;
+ const d=dev(car.x,car.y),on=d<rw/2,top=W*.55;
+ if(run){
+  const vmax=on?top:top*.4;
+  car.v+=(vmax-car.v)*Math.min(1,dt*1.6);
+  car.a+=(R-L)*2.7*(.4+.6*car.v/top)*dt;
+  car.x+=Math.cos(car.a)*car.v*dt;car.y+=Math.sin(car.a)*car.v*dt;
+  const ph=phi(car.x,car.y);let df=ph-prev;
+  if(df>Math.PI)df-=TAU;if(df<-Math.PI)df+=TAU;
+  prog-=df;prev=ph;
+  const lap=Math.floor(prog/TAU);
+  $('lp').textContent='ল্যাপ '+Math.min(LAPS,Math.max(0,lap)+1)+'/'+LAPS;
+  $('tm').textContent=((performance.now()-t0)/1000).toFixed(1)+'s';
+  $('sp').textContent=Math.round(car.v/top*120)+' km/h';
+  if(lap>=LAPS)finish()}
+ /* আঁকা */
+ g.fillStyle='#2e7d32';g.fillRect(0,0,W,H);
+ g.fillStyle='#276b2b';for(let i=0;i<H;i+=40)g.fillRect(0,i,W,20);
+ g.beginPath();g.ellipse(cx,cy,rx,ry,0,0,TAU);
+ g.strokeStyle='#fff';g.lineWidth=rw+8;g.stroke();
+ g.strokeStyle='#444';g.lineWidth=rw;g.stroke();
+ g.setLineDash([16,16]);g.strokeStyle='#ffd54a';g.lineWidth=3;g.stroke();g.setLineDash([]);
+ g.fillStyle='#fff';g.fillRect(cx-3,cy+ry-rw/2,6,rw);
+ g.save();g.translate(car.x,car.y);g.rotate(car.a);
+ g.fillStyle='#0006';g.fillRect(-14,-6,30,18);
+ g.fillStyle='#e53935';g.beginPath();g.roundRect(-15,-8,30,16,4);g.fill();
+ g.fillStyle='#222';g.fillRect(-2,-6,9,12);
+ g.fillStyle='#ffd54a';g.fillRect(12,-7,3,4);g.fillRect(12,3,3,4);
+ g.restore();
+ if(msg){g.fillStyle='#fff';g.font='bold 80px sans-serif';g.textAlign='center';g.textBaseline='middle';g.strokeStyle='#000';g.lineWidth=6;g.strokeText(msg,cx,cy);g.fillText(msg,cx,cy)}
+ requestAnimationFrame(loop)}
+reset();requestAnimationFrame(loop);
+</script></body></html>
