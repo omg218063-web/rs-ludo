@@ -1,400 +1,387 @@
-<!DOCTYPE html><html lang="bn"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>RS Ludo</title>
+
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#10101d">
+<title>RS LUDO</title>
+
 <style>
-:root{--gold:#ffd54a}
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-body{margin:0;min-height:100vh;color:#fff;font-family:sans-serif;text-align:center;overflow-x:hidden;
- background:radial-gradient(circle at 50% 40%,#4a1480,#12002b 70%);}
-#logo{font-size:26px;font-weight:900;letter-spacing:3px;padding:8px 0 0}
-#logo b{font-size:40px;background:linear-gradient(90deg,#ffd54a,#fff,#ffb300,#ffd54a);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 3s linear infinite}
-@keyframes sh{to{background-position:300% 0}}
-button,input,select{font-size:16px;padding:9px 14px;margin:3px;border-radius:14px;border:0;font-family:inherit}
-input,select{background:#ffffff26;color:#fff;text-align:center}
-select option{color:#000}
-button,.b{background:linear-gradient(#ffd54a,#ff9800);color:#2b0050;font-weight:700;transition:transform .15s}
-.b{display:inline-block;margin:6px;padding:10px 16px;border-radius:14px}
-button:active{transform:scale(.92)}button:disabled{opacity:.35}
-.box{max-width:420px;margin:12px auto;padding:16px;background:#ffffff14;border-radius:22px}
-.rg{position:relative;width:var(--z);height:var(--z);margin:6px auto;display:inline-block}
-.rg::before{content:"";position:absolute;inset:-5px;border-radius:50%;background:var(--bgd);animation:rot 3s linear infinite}
-.rg img{position:relative;width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;border:2px solid #000}
-@keyframes rot{to{transform:rotate(360deg)}}
-/* হোম */
-#home{position:relative;height:100vh;overflow:hidden;display:flex;flex-direction:column}
-#top{display:flex;align-items:center;gap:4px;padding:8px 10px;background:linear-gradient(#000a,#0000);text-align:left}
-#top>div{flex:1;min-width:0}#cn{font-size:19px;color:var(--gold);font-weight:700;flex:0!important;white-space:nowrap}
-#top button{padding:8px 10px;margin:0}
-#nid small{display:block;opacity:.7}
-#side{position:absolute;left:6px;top:96px;display:flex;flex-direction:column;gap:8px;z-index:2}
-.gm{width:64px;height:64px;font-size:26px;padding:4px;margin:0;border-radius:16px;background:#ffffff22;color:#fff;border:2px solid #ffffff44}
-.gm small{display:block;font-size:11px}.gm.on{background:linear-gradient(#ffd54a,#ff9800);color:#2b0050;border-color:#fff;box-shadow:0 0 16px var(--gold)}
-#fb{position:absolute;right:8px;top:96px;width:60px;height:60px;font-size:26px;border-radius:50%;z-index:2}
-#bdg{position:absolute;top:-4px;right:-4px;background:#f22;color:#fff;border-radius:50%;font-size:12px;width:20px;height:20px;line-height:20px;font-style:normal}
-#mid{flex:1;display:flex;flex-direction:column;align-items:center;min-height:0;padding:0 6px}
-#lgw{position:relative;width:100%}
-#crown{font-size:32px;line-height:1;animation:bob 2s ease-in-out infinite;filter:drop-shadow(0 0 10px #ffd54a)}
-#lg3 span{font-size:56px;font-weight:900;line-height:1;color:var(--c);-webkit-text-stroke:2px #fff;paint-order:stroke fill;
- text-shadow:0 3px 0 #0004,0 5px 0 #0003,0 7px 0 #0002,0 10px 14px #000a}
-#rib{display:inline-block;margin-top:2px;padding:3px 22px;background:linear-gradient(90deg,#4a148c,#7b1fa2,#4a148c);border:2px solid var(--gold);border-radius:6px;font-weight:700;font-size:13px}
-.fd{position:absolute;top:34px;font-size:30px;font-style:normal;animation:bob 2.5s ease-in-out infinite}
-#lgi{width:78%;max-height:150px;object-fit:contain}
-#brd{perspective:500px;height:104px;margin-top:2px}
-#bi{width:190px;height:190px;display:block;margin:auto;transform-origin:50% 0;transform:rotateX(58deg);filter:drop-shadow(0 0 18px #b388ff);animation:fl 5s ease-in-out infinite}
-@keyframes fl{50%{transform:rotateX(58deg) translateY(-6px)}}
-#stage{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;gap:2px;min-height:130px}
-.slot{flex:1;position:relative;min-width:0;display:flex;flex-direction:column;align-items:center}
-.ch{width:96%;max-width:96px;animation:bob 2s ease-in-out infinite}
-@keyframes bob{50%{transform:translateY(-7px)}}
-.plat{width:90%;height:14px;margin-top:-10px;border-radius:50%;background:radial-gradient(#ffd54a,#ff980000 70%);box-shadow:0 0 22px var(--gold)}
-.emp{justify-content:center;opacity:.6}
-.plus{width:54px;height:54px;line-height:50px;font-size:34px;border:2px dashed #fff8;border-radius:50%}
-#bot{padding-bottom:10px}
-#go{font-size:24px;padding:14px 42px;border-radius:30px;animation:pl 1.2s infinite alternate}
-@keyframes pl{to{box-shadow:0 0 22px #ff9800;transform:scale(1.05)}}
-.ov{position:fixed;inset:0;background:#000b;z-index:9;display:flex;align-items:center;justify-content:center}
-.pn{width:92%;max-width:400px;max-height:85vh;overflow:auto;background:#1d0640;border:2px solid var(--gold);border-radius:20px;padding:14px}
-.fr{display:flex;align-items:center;gap:8px;text-align:left;padding:4px 0}.fr span{flex:1}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#777}.dot.on{background:#2e6}
-#sl{display:grid;grid-template-columns:1fr 1fr;gap:8px}.it{background:#ffffff14;border-radius:14px;padding:6px}.it b,.it small{display:block}
-#toast{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#ffd54a;color:#2b0050;padding:10px 14px;border-radius:16px;z-index:20;font-weight:700}
-.pc{width:78px;padding:6px;border-radius:14px;background:#ffffff1a;border:2px solid var(--c);font-size:12px;transition:.3s}
-.pc b,.pc small{display:block;overflow:hidden;white-space:nowrap}
-.pc.on{animation:glow .8s infinite alternate;background:#ffffff40}.pc.off{opacity:.35}
-@keyframes glow{to{box-shadow:0 0 16px var(--c);transform:translateY(-4px)}}
-#cards{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:6px}
-#c{width:100%;max-width:520px;touch-action:manipulation;border-radius:18px;box-shadow:0 0 30px #000a}
-#dice{font-size:64px;line-height:1;height:72px}
-.spin{animation:sp .35s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
-.pop{animation:pp .45s}@keyframes pp{0%{transform:scale(2.2) rotate(-120deg)}100%{transform:scale(1)}}
-</style></head><body>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-<div id="auth"><div id="logo"><b>RS</b> LUDO</div>
-<div class="box"><h3>অ্যাকাউন্ট</h3>
-<input id="nm" placeholder="আপনার নাম"><br><button id="reg">✨ নতুন আইডি বানাও</button>
-<hr style="opacity:.2">
-<input id="gid" placeholder="গেম আইডি (৬ সংখ্যা)" inputmode="numeric" maxlength="6"><br><button id="lg">লগইন</button></div></div>
+body {
+  background: #10101d;
+  color: white;
+  font-family: Arial, sans-serif;
+  min-height: 100vh;
+}
 
-<div id="home" hidden>
- <div id="top"><label for="ph" id="me"></label><div id="nid"></div><div id="cn"></div><button id="bn">🎁</button><button id="shop">💍</button><button id="st">⚙️</button></div>
- <input id="ph" type="file" accept="image/*" hidden>
- <div id="side">
-  <button class="gm on">🎲<small>লুডু</small></button>
-  <button class="gm soon">🏁<small>রেস</small></button>
- </div>
- <button id="fb">👥<i id="bdg" hidden>0</i></button>
- <div id="mid">
-  <div id="lgw"><i class="fd" style="left:10%">🎲</i><i class="fd" style="right:10%;animation-delay:1s">🎲</i>
-   <div id="crown">👑</div>
-   <div id="lg3"><span style="--c:#ff3d3d">L</span><span style="--c:#2e9bff">U</span><span style="--c:#2ee66b">D</span><span style="--c:#ffc400">O</span></div>
-   <img id="lgi" hidden><div id="rib">★ Play • Enjoy • Win ★</div></div>
-  <div id="brd"><img id="bi"></div>
-  <div id="stage"></div>
- </div>
- <div id="bot"><select id="fee"><option value="0">ফ্রি</option><option value="50">🪙 50</option><option value="100">🪙 100</option><option value="200">🪙 200</option><option value="500">🪙 500</option></select><button id="lk">🔗 লিংক</button><button class="mb" id="hm">🎙️ মাইক চালু করো</button><br><button id="go">⭐ START</button></div>
+.container {
+  max-width: 500px;
+  margin: auto;
+  padding: 18px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+.logo {
+  color: #ffd54a;
+  font-size: 27px;
+  font-weight: 900;
+}
+
+.coins {
+  background: #25243a;
+  border: 1px solid #ffd54a;
+  color: #ffd54a;
+  padding: 10px 14px;
+  border-radius: 20px;
+  font-weight: bold;
+}
+
+.profile {
+  background: linear-gradient(135deg,#292444,#17172b);
+  border: 1px solid #51436e;
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+}
+
+.avatar {
+  width: 58px;
+  height: 58px;
+  background: #ffd54a;
+  color: #17172b;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 23px;
+  font-weight: bold;
+}
+
+.profile h3 {
+  margin-bottom: 5px;
+}
+
+.muted {
+  color: #aaa8bd;
+  font-size: 13px;
+}
+
+.section-title {
+  font-size: 19px;
+  margin: 22px 0 12px;
+  color: #fff;
+}
+
+.lobby {
+  background: linear-gradient(135deg,#47316d,#25264c);
+  padding: 20px;
+  border-radius: 18px;
+  text-align: center;
+  border: 1px solid #8062ad;
+}
+
+.lobby h2 {
+  color: #ffd54a;
+  margin-bottom: 8px;
+}
+
+.players {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.player {
+  background: #ffffff12;
+  border: 1px solid #ffffff22;
+  border-radius: 12px;
+  padding: 14px 5px;
+  font-size: 13px;
+}
+
+.player strong {
+  display: block;
+  font-size: 20px;
+  margin-bottom: 5px;
+}
+
+button {
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 12px;
+  padding: 13px;
+}
+
+.primary {
+  background: #ffd54a;
+  color: #17172b;
+  width: 100%;
+}
+
+.secondary {
+  background: #34334c;
+  color: white;
+  border: 1px solid #69647f;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.game-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.game-card {
+  background: #201f32;
+  border: 1px solid #39364f;
+  padding: 17px 12px;
+  border-radius: 16px;
+  text-align: center;
+}
+
+.game-icon {
+  font-size: 35px;
+  margin-bottom: 10px;
+}
+
+.game-card h3 {
+  font-size: 15px;
+  margin-bottom: 7px;
+}
+
+.game-card button {
+  width: 100%;
+  margin-top: 12px;
+  background: #ffd54a;
+  color: #17172b;
+}
+
+.social {
+  background: #201f32;
+  padding: 16px;
+  border-radius: 16px;
+  margin-top: 14px;
+}
+
+.social-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.mic {
+  background: #34334c;
+  color: white;
+  border: 1px solid #77718e;
+}
+
+.footer {
+  text-align: center;
+  color: #77758a;
+  font-size: 12px;
+  padding: 25px 0 10px;
+}
+
+</style>
+</head>
+
+<body>
+<div class="container">
+
+  <header class="header">
+    <div class="logo">RS LUDO</div>
+    <div class="coins">🪙 <span id="coins">1000</span></div>
+  </header>
+
+  <section class="profile">
+    <div class="avatar">RS</div>
+    <div>
+      <h3>RS Rana</h3>
+      <p class="muted">Level 1 · New Player</p>
+      <p class="muted">Player ID: RS-0001</p>
+    </div>
+  </section>
+
+  <h2 class="section-title">🎮 Ludo Multiplayer</h2>
+
+  <section class="lobby">
+    <h2>🏆 RS LUDO ROOM</h2>
+    <p class="muted">Play with friends and other players</p>
+
+    <div class="players">
+      <div class="player">
+        <strong>👤</strong>
+        RS Rana
+      </div>
+      <div class="player">
+        <strong>👤</strong>
+        Waiting...
+      </div>
+      <div class="player">
+        <strong>👤</strong>
+        Waiting...
+      </div>
+      <div class="player">
+        <strong>👤</strong>
+        Waiting...
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" onclick="createRoom()">
+        + Create Room
+      </button>
+      <button class="secondary" onclick="joinRoom()">
+        Join Room
+      </button>
+    </div>
+  </section>
+
+  <h2 class="section-title">🔥 More Games</h2>
+
+  <section class="game-grid">
+
+    <div class="game-card">
+      <div class="game-icon">🎲</div>
+      <h3>RS LUDO</h3>
+      <p class="muted">Classic Multiplayer</p>
+      <button onclick="openGame('RS LUDO')">PLAY</button>
+    </div>
+
+    <div class="game-card">
+      <div class="game-icon">🎯</div>
+      <h3>RS CARROM</h3>
+      <p class="muted">Carrom Challenge</p>
+      <button onclick="openGame('RS CARROM')">PLAY</button>
+    </div>
+
+    <div class="game-card">
+      <div class="game-icon">🏎️</div>
+      <h3>RS MICRO RACING</h3>
+      <p class="muted">Racing Challenge</p>
+      <button onclick="openGame('RS MICRO RACING')">PLAY</button>
+    </div>
+
+    <div class="game-card">
+      <div class="game-icon">🎮</div>
+      <h3>RS BATTLE ROYALE</h3>
+      <p class="muted">Battle Challenge</p>
+      <button onclick="openGame('RS BATTLE ROYALE')">PLAY</button>
+    </div>
+
+  </section>
+
+  <h2 class="section-title">👥 Friends & Voice</h2>
+
+  <section class="social">
+    <div class="social-row">
+      <div>
+        <h3>Invite Friends</h3>
+        <p class="muted">Play together with friends</p>
+      </div>
+      <button class="secondary" onclick="inviteFriend()">
+        INVITE
+      </button>
+    </div>
+  </section>
+
+  <section class="social">
+    <div class="social-row">
+      <div>
+        <h3>🎙️ Voice Chat</h3>
+        <p class="muted" id="micStatus">Microphone is off</p>
+      </div>
+      <button class="mic" id="micButton" onclick="toggleMic()">
+        🎙️ OFF
+      </button>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>© 2026 RS LUDO</p>
+    <p>Powered by RS Gaming</p>
+  </footer>
+
 </div>
 
-<div id="fp" class="ov" hidden><div class="pn"><h3>👥 বন্ধু</h3>
-<input id="af" placeholder="বন্ধুর গেম আইডি" inputmode="numeric" maxlength="6" style="width:60%"><button id="ab">➕ অ্যাড</button>
-<div id="fl"></div><button class="x">বন্ধ করো</button></div></div>
-<div id="sp" class="ov" hidden><div class="pn"><h3>💍 রিং শপ</h3><div id="sl"></div><br><button class="x">বন্ধ করো</button></div></div>
-<div id="sg" class="ov" hidden><div class="pn"><h3>⚙️ সেটিংস</h3>
-<label class="b" for="bgf">🖼️ ব্যাকগ্রাউন্ড ছবি বদলাও</label><br>
-<label class="b" for="lgf">🏷️ লোগো ছবি বদলাও (PNG)</label><br>
-<button id="rst">↩️ ডিফল্ট ফিরিয়ে আনো</button>
-<input id="bgf" type="file" accept="image/*" hidden><input id="lgf" type="file" accept="image/*" hidden>
-<p><small>ছবি শুধু এই ফোনে সেভ থাকে। ব্যাকগ্রাউন্ডে লেখা বা বোতাম ছাড়া ছবি দিলে সবচেয়ে সুন্দর লাগে।</small></p>
-<button class="x">বন্ধ করো</button></div></div>
-<div id="toast" hidden></div>
-
-<div id="game" hidden>
-<div id="logo"><b>RS</b> LUDO</div>
-<div id="info"></div><div id="cards"></div>
-<canvas id="c" width="600" height="600"></canvas>
-<div id="dice">🎲</div>
-<div id="msg" style="min-height:28px;font-size:18px"></div>
-<div><button id="roll">🎲 ডাইস ফেলো</button><button class="mb" id="mic">🎙️ মাইক চালু করো</button></div>
-<button id="lv">🏠 হোমে যাও</button>
-</div>
-
-<script src="/socket.io/socket.io.js"></script>
 <script>
-const T={gold:'#ffd54a',seat:['#ff3d5a','#2ee66b','#ffc400','#2e9bff'],track:'#fff8e7',safe:'#b388ff',center:'#1a0033'};
-const C=T.seat,HC=['#e53935','#8e44ad','#1e3a8a','#f9a825'],RC=['#888','#ffd54a','#00e5ff','#ff6d00','#ff4081','#00e676','#e040fb','#80d8ff'];
-const RG=[{n:'সাধারণ',p:0,b:'#888'},
-{n:'সোনালি',p:100,b:'conic-gradient(#ffd54a,#ff9800,#ffd54a)'},
-{n:'নীল বিদ্যুৎ',p:300,b:'conic-gradient(#00e5ff,#2962ff,#00e5ff)'},
-{n:'আগুন',p:500,b:'conic-gradient(#ff1744,#ff9100,#ffea00,#ff1744)'},
-{n:'রামধনু',p:800,b:'conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)'},
-{n:'পান্না',p:1200,b:'conic-gradient(#00e676,#1de9b6,#00c853,#00e676)'},
-{n:'রাজকীয়',p:2000,b:'conic-gradient(#ffd54a,#e040fb,#ffd54a,#7c4dff,#ffd54a)'},
-{n:'ডায়মন্ড',p:5000,b:'conic-gradient(#fff,#80d8ff,#fff,#b388ff,#fff)'}];
-const s=io(),$=id=>document.getElementById(id),cv=$('c'),g=cv.getContext('2d'),U=40;
-const SAFE=[0,8,13,21,26,34,39,47],F=['🎲','⚀','⚁','⚂','⚃','⚄','⚅'];
-const PATH=[[1,6],[2,6],[3,6],[4,6],[5,6],[6,5],[6,4],[6,3],[6,2],[6,1],[6,0],[7,0],[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[9,6],[10,6],[11,6],[12,6],[13,6],[14,6],[14,7],[14,8],[13,8],[12,8],[11,8],[10,8],[9,8],[8,9],[8,10],[8,11],[8,12],[8,13],[8,14],[7,14],[6,14],[6,13],[6,12],[6,11],[6,10],[6,9],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8],[0,7],[0,6]];
-const HOME=[[[1,7],[2,7],[3,7],[4,7],[5,7]],[[7,1],[7,2],[7,3],[7,4],[7,5]],[[13,7],[12,7],[11,7],[10,7],[9,7]],[[7,13],[7,12],[7,11],[7,10],[7,9]]];
-const BASE=[[0,0],[9,0],[9,9],[0,9]];
-let S=null,ME=null,PT=null,FR={friends:[],reqs:[]},mic=null,rolling=0,pd=0,man=0;
-const qparty=new URLSearchParams(location.search).get('party');
-const me=()=>S&&S.players.find(p=>p.id==s.id);
-const mine=()=>S&&S.phase!='lobby'&&S.players[S.turn].id==s.id;
-const legal=(pl,d)=>pl.pieces.map((p,i)=>i).filter(i=>pl.pieces[i]<0?d==6:pl.pieces[i]+d<=56);
-const show=id=>['auth','home','game'].forEach(x=>$(x).hidden=x!=id);
-const dflt=n=>'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#6a1b9a"/><text x="48" y="66" font-size="54" text-anchor="middle" fill="#ffd54a" font-family="sans-serif">'+((n||'?')[0])+'</text></svg>');
-const av=(p,z)=>'<div class="rg" style="--z:'+z+'px;--bgd:'+RG[p.ring||0].b+'"><img src="'+(p.pic||dflt(p.name))+'"></div>';
-const IM={};
-const img=p=>{const k=p.pic||p.name;if(!IM[k]){const i=new Image();i.src=p.pic||dflt(p.name);IM[k]=i}return IM[k]};
+function createRoom() {
+  alert("Room creation will be connected to the backend.");
+}
 
-/* ক্যারেক্টার: হুডিতে RS + নাম, মুখের জায়গায় প্রোফাইল ছবি */
-function chr(c,m,k,host){
- const n=m.name,rc=RC[m.ring||0];
- return '<svg viewBox="0 -14 80 154" class="ch"><defs><clipPath id="cl'+k+'"><circle cx="40" cy="25" r="22"/></clipPath></defs>'+
- '<ellipse cx="40" cy="134" rx="28" ry="6" fill="#0006"/>'+
- '<rect x="24" y="78" width="14" height="48" rx="6" fill="#263238"/><rect x="42" y="78" width="14" height="48" rx="6" fill="#263238"/>'+
- '<rect x="18" y="44" width="44" height="42" rx="14" fill="'+c+'" stroke="#0005" stroke-width="1.5"/><rect x="6" y="46" width="12" height="36" rx="6" fill="'+c+'"/><rect x="62" y="46" width="12" height="36" rx="6" fill="'+c+'"/>'+
- '<ellipse cx="40" cy="34" rx="28" ry="20" fill="'+c+'" stroke="#0005" stroke-width="1.5"/>'+
- '<circle cx="40" cy="25" r="24" fill="#fff" stroke="'+rc+'" stroke-width="3"/>'+
- (m.pic?'<image href="'+m.pic+'" x="18" y="3" width="44" height="44" clip-path="url(#cl'+k+')" preserveAspectRatio="xMidYMid slice"/>'
- :'<circle cx="40" cy="25" r="22" fill="#ffcc99"/><circle cx="32" cy="27" r="3" fill="#222"/><circle cx="48" cy="27" r="3" fill="#222"/><path d="M32 37q8 7 16 0" stroke="#a33" stroke-width="2" fill="none"/>')+
- '<text x="40" y="65" font-size="15" text-anchor="middle" fill="#fff" font-weight="900">RS</text>'+
- '<text x="40" y="77" font-size="8" text-anchor="middle" fill="#fff" font-weight="700" textLength="'+Math.min(38,n.length*5.5)+'" lengthAdjust="spacingAndGlyphs">'+n+'</text>'+
- (host?'<text x="40" y="-3" font-size="14" text-anchor="middle">👑</text>':'')+'</svg>'}
+function joinRoom() {
+  const room = prompt("Enter Room ID:");
+  if (room) {
+    alert("Room joining will be connected to the backend.");
+  }
+}
 
-/* ---------- অ্যাকাউন্ট ---------- */
-$('reg').onclick=()=>s.emit('register',$('nm').value);
-$('lg').onclick=()=>{man=1;s.emit('login',$('gid').value)};
-s.on('connect',()=>{const i=localStorage.rsid;if(i)s.emit('login',i)});
-s.on('badid',()=>{localStorage.removeItem('rsid');if(man)alert('এই আইডি পাওয়া যায়নি');man=0});
-let pj=qparty;
-s.on('me',u=>{
- ME=u;localStorage.rsid=u.id;
- if(!S)show('home');
- rh();rs();
- if(pj){s.emit('joinparty',pj);pj=null}});
+function openGame(name) {
+  alert(name + " game will be connected in the next development stage.");
+}
 
-/* ছবি থেকে শুধু মুখ কেটে নেওয়া */
-async function fc(im){
- let m=Math.min(im.width,im.height),sz=m,sx=(im.width-m)/2,sy=im.height>im.width?(im.height-m)*.2:(im.height-m)/2;
- try{if('FaceDetector' in window){
-  const fs=await new FaceDetector({fastMode:true,maxDetectedFaces:1}).detect(im);
-  if(fs.length){const b=fs[0].boundingBox;sz=Math.min(m,Math.max(b.width,b.height)*1.3);sx=b.x+b.width/2-sz/2;sy=b.y+b.height/2-sz/2}}}catch(e){}
- sx=Math.max(0,Math.min(sx,im.width-sz));sy=Math.max(0,Math.min(sy,im.height-sz));
- const k=document.createElement('canvas');k.width=k.height=96;
- k.getContext('2d').drawImage(im,sx,sy,sz,sz,0,0,96,96);
- return k.toDataURL('image/jpeg',.6)}
-$('ph').onchange=e=>{
- const f=e.target.files[0];if(!f)return;
- const im=new Image();
- im.onload=async()=>s.emit('pic',await fc(im));
- im.src=URL.createObjectURL(f)};
-$('bn').onclick=()=>s.emit('bonus');
-s.on('err',t=>alert(t));
+function inviteFriend() {
+  if (navigator.share) {
+    navigator.share({
+      title: "RS LUDO",
+      text: "Come play with me on RS LUDO!"
+    }).catch(() => {});
+  } else {
+    alert("Friend invitation will be connected later.");
+  }
+}
 
-/* ---------- সেটিংস: ব্যাকগ্রাউন্ড আর লোগো ---------- */
-function ap(){
- const b=localStorage.rsbg,l=localStorage.rslg;
- $('home').style.background=b?'url("'+b+'") center/cover':'';
- $('lgi').src=l||'';$('lgi').hidden=!l;
- ['lg3','rib','crown'].forEach(i=>$(i).hidden=!!l)}
-function rz(f,w,h,type,key){
- const im=new Image();
- im.onload=()=>{
-  const r=Math.min(1,w/im.width,h/im.height),k=document.createElement('canvas');
-  k.width=im.width*r;k.height=im.height*r;
-  k.getContext('2d').drawImage(im,0,0,k.width,k.height);
-  try{localStorage[key]=k.toDataURL(type,.75)}catch(e){alert('ছবি অনেক বড়, ছোট ছবি দিন')}
-  ap()};
- im.src=URL.createObjectURL(f)}
-$('bgf').onchange=e=>e.target.files[0]&&rz(e.target.files[0],720,1280,'image/jpeg','rsbg');
-$('lgf').onchange=e=>e.target.files[0]&&rz(e.target.files[0],600,400,'image/png','rslg');
-$('rst').onclick=()=>{localStorage.removeItem('rsbg');localStorage.removeItem('rslg');ap()};
-$('st').onclick=()=>$('sg').hidden=0;
-ap();
+let micOn = false;
 
-/* ---------- হোম ---------- */
-function rh(){
- $('me').innerHTML=av(ME,52);
- $('nid').innerHTML='<b>'+ME.name+'</b><small>ID '+ME.id+'</small>';
- $('cn').textContent='🪙 '+ME.coins;
- rstage()}
-function rstage(){
- if(!PT||!ME)return;
- const host=PT.host==ME.id;let h='';
- for(let i=0;i<4;i++){const m=PT.m[i];
-  h+=m?'<div class="slot">'+chr(HC[i],m,i,m.id==PT.host)+'<div class="plat"></div></div>'
-   :'<div class="slot emp" onclick="$(\'fp\').hidden=0"><div class="plus">＋</div></div>'}
- $('stage').innerHTML=h;
- $('fee').value=PT.fee;$('fee').disabled=!host;
- $('go').disabled=!(host&&PT.m.length>1)}
-s.on('party',p=>{PT=p;rstage();peers()});
-$('fee').onchange=()=>s.emit('pfee',+$('fee').value);
-$('go').onclick=()=>s.emit('pstart');
-$('lk').onclick=()=>{
- const u=location.origin+'?party='+PT.code;
- if(navigator.share)navigator.share({title:'RS Ludo',url:u});else prompt('কপি করুন',u)};
-document.querySelectorAll('.soon').forEach(b=>b.onclick=()=>alert('শীঘ্রই আসছে! 🚧'));
-document.querySelectorAll('.x').forEach(b=>b.onclick=()=>b.closest('.ov').hidden=1);
-$('fb').onclick=()=>$('fp').hidden=0;
-$('shop').onclick=()=>{rs();$('sp').hidden=0};
+async function toggleMic() {
+  const button = document.getElementById("micButton");
+  const status = document.getElementById("micStatus");
 
-/* বন্ধু */
-$('ab').onclick=()=>{s.emit('addf',$('af').value);$('af').value=''};
-s.on('friends',d=>{
- FR=d;
- $('bdg').hidden=!d.reqs.length;$('bdg').textContent=d.reqs.length;
- $('fl').innerHTML=
-  d.reqs.map(r=>'<div class="fr">'+av(r,40)+'<span>'+r.name+'<br><small>বন্ধু হতে চায়</small></span><button onclick="s.emit(\'accept\',\''+r.id+'\')">✔</button><button onclick="s.emit(\'decl\',\''+r.id+'\')">✖</button></div>').join('')+
-  d.friends.map(f=>'<div class="fr">'+av(f,40)+'<span>'+f.name+' <i class="dot'+(f.online?' on':'')+'"></i></span>'+(f.online?'<button onclick="s.emit(\'invite\',\''+f.id+'\')">ইনভাইট</button>':'<small>অফলাইন</small>')+'</div>').join('')||'<p>এখনও কোনো বন্ধু নেই</p>'});
-s.on('invite',d=>{
- const t=$('toast');
- t.innerHTML='🎮 '+d.from+' ডাকছে <button id="ji">জয়েন</button>';t.hidden=0;
- $('ji').onclick=()=>{s.emit('acceptinv',d.code);t.hidden=1};
- setTimeout(()=>t.hidden=1,12000)});
+  if (!micOn) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true
+      });
 
-/* রিং শপ */
-function rs(){
- if(!ME)return;
- $('sl').innerHTML=RG.map((r,i)=>{
-  const own=ME.rings.includes(i),on=ME.ring==i;
-  return '<div class="it">'+av({...ME,ring:i},52)+'<b>'+r.n+'</b>'+
-   (on?'<small>✔ পরা আছে</small>':own?'<button onclick="s.emit(\'setring\','+i+')">পরো</button>':'<button onclick="s.emit(\'buy\','+i+')">🪙'+r.p+'</button>')+'</div>'}).join('')}
+      stream.getTracks().forEach(track => track.stop());
 
-/* ---------- বোর্ড ---------- */
-const bd=document.createElement('canvas');bd.width=bd.height=600;
-(function(){
- const x=bd.getContext('2d');
- x.fillStyle=T.center;x.fillRect(0,0,600,600);
- BASE.forEach(([a,b],i)=>{
-  x.fillStyle=C[i];x.beginPath();x.roundRect(a*U+3,b*U+3,6*U-6,6*U-6,24);x.fill();
-  x.fillStyle=T.track;x.beginPath();x.roundRect((a+1)*U,(b+1)*U,4*U,4*U,18);x.fill()});
- const cell=(c,f)=>{x.fillStyle=f;x.beginPath();x.roundRect(c[0]*U+2,c[1]*U+2,U-4,U-4,8);x.fill()};
- PATH.forEach((c,i)=>{
-  const st=[0,13,26,39].indexOf(i);cell(c,st>=0?C[st]:T.track);
-  if(SAFE.includes(i)&&st<0){x.fillStyle=T.safe;x.font='22px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('★',c[0]*U+U/2,c[1]*U+U/2+1)}});
- HOME.forEach((h,i)=>h.forEach(c=>cell(c,C[i])));
- [[[240,240],[240,360]],[[240,240],[360,240]],[[360,240],[360,360]],[[240,360],[360,360]]].forEach((p,i)=>{
-  x.fillStyle=C[i];x.beginPath();x.moveTo(p[0][0],p[0][1]);x.lineTo(p[1][0],p[1][1]);x.lineTo(300,300);x.fill()});
- x.strokeStyle=T.gold;x.lineWidth=5;x.strokeRect(2,2,596,596)})();
-$('bi').src=bd.toDataURL();
+      micOn = true;
+      button.textContent = "🎙️ ON";
+      status.textContent = "Microphone permission granted";
+    } catch (error) {
+      alert("Microphone permission is required.");
+    }
+  } else {
+    micOn = false;
+    button.textContent = "🎙️ OFF";
+    status.textContent = "Microphone is off";
+  }
+}
+</script>
 
-function pos(q,i,p){
- if(p<0){const b=BASE[q];return[b[0]+2+(i%2)*2,b[1]+2+(i>>1)*2]}
- if(p<=50){const c=PATH[(q*13+p)%52];return[c[0]+.5,c[1]+.5]}
- if(p<=55){const c=HOME[q][p-51];return[c[0]+.5,c[1]+.5]}
- const f=[[6.75,7.5],[7.5,6.75],[8.25,7.5],[7.5,8.25]][q],o=(i-1.5)*.17;
- return q%2?[f[0]+o,f[1]]:[f[0],f[1]+o]}
-
-let DP={};
-function draw(t){
- if($('game').hidden)return;
- g.drawImage(bd,0,0);
- if(!S)return;
- S.players.forEach(pl=>{
-  const b=BASE[pl.seat],cx=(b[0]+3)*U,cy=(b[1]+3)*U,im=img(pl);
-  g.save();g.beginPath();g.arc(cx,cy,28,0,7);g.clip();
-  if(im.complete&&im.naturalWidth)g.drawImage(im,cx-28,cy-28,56,56);
-  g.restore();
-  g.beginPath();g.arc(cx,cy,28,0,7);g.lineWidth=4;g.strokeStyle=T.gold;g.stroke()});
- const mv=mine()&&S.phase=='move'?legal(me(),S.dice):[];
- S.players.forEach(pl=>pl.pieces.forEach((p,i)=>{
-  const k=pl.id+i,st=DP[k]||(DP[k]={d:p,x:0,y:0,t:0,f:1});
-  if(st.d!=p){
-   if(p<0)st.d=-1;
-   else if(st.d<0)st.d=0;
-   else if(t-st.t>120){st.d+=Math.sign(p-st.d);st.t=t}}
-  const [tx,ty]=pos(pl.seat,i,st.d);
-  if(st.f){st.x=tx;st.y=ty;st.f=0}else{st.x+=(tx-st.x)*.3;st.y+=(ty-st.y)*.3}
-  const R=st.d!=p?18:(p==56?11:15),x=st.x*U,y=st.y*U;
-  g.beginPath();g.arc(x,y+3,R,0,7);g.fillStyle='#0007';g.fill();
-  const gr=g.createRadialGradient(x-4,y-5,2,x,y,R);
-  gr.addColorStop(0,'#fff');gr.addColorStop(.35,C[pl.seat]);gr.addColorStop(1,'#000b');
-  g.beginPath();g.arc(x,y,R,0,7);g.fillStyle=gr;g.fill();
-  g.lineWidth=2;g.strokeStyle='#fff';g.stroke();
-  if(pl.id==s.id&&mv.includes(i)){
-   g.beginPath();g.arc(x,y,R+4+2*Math.sin(t/150),0,7);g.lineWidth=3;g.strokeStyle=T.gold;g.stroke()}
-  g.fillStyle='#fff';g.font='bold 13px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(i+1,x,y)}))}
-requestAnimationFrame(function f(t){draw(t);requestAnimationFrame(f)});
-
-/* ---------- গেম UI ---------- */
-function render(){
- $('info').innerHTML='এন্ট্রি 🪙'+S.fee+' | পট 🪙'+S.pot;
- $('cards').innerHTML=S.players.map((p,i)=>'<div class="pc'+(i==S.turn&&S.phase!='over'?' on':'')+(p.left?' off':'')+'" style="--c:'+C[p.seat]+'">'+av(p,40)+'<b>'+p.name+'</b><small>🪙'+p.coins+'</small></div>').join('');
- $('msg').textContent=S.msg;
- $('roll').disabled=!(mine()&&S.phase=='roll');
- if(mine()&&S.phase=='move'){
-  const l=legal(me(),S.dice);
-  if(l.length==1)setTimeout(()=>{if(S&&S.phase=='move'&&mine())s.emit('move',l[0])},800)}}
-s.on('state',st=>{
- S=st;show('game');
- if(S.phase=='rolling'&&!rolling){
-  rolling=setInterval(()=>{$('dice').textContent=F[1+Math.floor(Math.random()*6)]},90);
-  $('dice').className='spin'}
- if(S.phase!='rolling'&&rolling){clearInterval(rolling);rolling=0;$('dice').className=''}
- if(S.dice!=pd){
-  pd=S.dice;$('dice').textContent=F[S.dice];
-  if(S.dice){void $('dice').offsetWidth;$('dice').className='pop'}}
- render();peers()});
-$('roll').onclick=()=>s.emit('roll');
-$('lv').onclick=()=>{
- s.emit('lgame');S=null;pd=0;DP={};
- show('home');rh();peers()};
-cv.onclick=e=>{
- if(!S||!mine()||S.phase!='move')return;
- const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)*600/r.width/U,y=(e.clientY-r.top)*600/r.height/U,m=me();
- let b=-1,bd2=1.2;
- legal(m,S.dice).forEach(i=>{const q=pos(m.seat,i,m.pieces[i]),dd=Math.hypot(q[0]-x,q[1]-y);if(dd<bd2){bd2=dd;b=i}});
- if(b>=0)s.emit('move',b)};
-
-/* ---------- লাইভ ভয়েস: লবি + খেলা (WebRTC) ---------- */
-const pcs={};
-function mk(id,init){
- const pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
- const o=pcs[id]={pc,tr:null,q:Promise.resolve()};
- pc.onicecandidate=e=>{if(e.candidate)s.emit('sig',id,{c:e.candidate})};
- pc.ontrack=e=>{
-  let a=$('a'+id);
-  if(!a){a=document.createElement('audio');a.id='a'+id;a.autoplay=true;document.body.appendChild(a)}
-  a.srcObject=e.streams[0]||new MediaStream([e.track]);a.play().catch(()=>{})};
- if(init){
-  pc.onnegotiationneeded=async()=>{
-   await pc.setLocalDescription(await pc.createOffer());
-   s.emit('sig',id,{d:pc.localDescription})};
-  o.tr=pc.addTransceiver('audio',{direction:'sendrecv'});
-  if(mic)o.tr.sender.replaceTrack(mic.getAudioTracks()[0])}
- return o}
-s.on('sig',(id,data)=>{
- const o=pcs[id]||mk(id,false);
- o.q=o.q.then(async()=>{
-  try{
-   if(data.d){
-    await o.pc.setRemoteDescription(data.d);
-    if(data.d.type=='offer'){
-     const tr=o.pc.getTransceivers()[0];
-     tr.direction='sendrecv';o.tr=tr;
-     if(mic)tr.sender.replaceTrack(mic.getAudioTracks()[0]);
-     await o.pc.setLocalDescription(await o.pc.createAnswer());
-     s.emit('sig',id,{d:o.pc.localDescription})}
-   }else if(data.c){await o.pc.addIceCandidate(data.c)}
-  }catch(e){console.log(e)}})});
-function peers(){
- const L=S?S.players.filter(p=>!p.left).map(p=>p.id):(PT?PT.m.map(m=>m.sid):[]);
- const ids=L.filter(i=>i!=s.id);
- ids.forEach(id=>{if(!pcs[id]&&s.id<id)mk(id,true)});
- Object.keys(pcs).forEach(id=>{
-  if(!ids.includes(id)){pcs[id].pc.close();delete pcs[id];const a=$('a'+id);if(a)a.remove()}})}
-const setMic=t=>document.querySelectorAll('.mb').forEach(b=>b.textContent=t);
-async function tm(){
- document.querySelectorAll('audio').forEach(a=>a.play().catch(()=>{}));
- if(!mic){
-  try{mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}})}
-  catch(e){return alert('মাইকের অনুমতি দিন, তারপর আবার চাপুন')}
-  const t=mic.getAudioTracks()[0];
-  for(const k in pcs)if(pcs[k].tr)pcs[k].tr.sender.replaceTrack(t);
-  setMic('🎙️ মাইক অন (মিউট করতে চাপুন)');
- }else{
-  const t=mic.getAudioTracks()[0];t.enabled=!t.enabled;
-  setMic(t.enabled?'🎙️ মাইক অন (মিউট করতে চাপুন)':'🔇 মিউট (চালু করতে চাপুন)')}}
-document.querySelectorAll('.mb').forEach(b=>b.onclick=tm);
-document.addEventListener('click',()=>document.querySelectorAll('audio').forEach(a=>a.paused&&a.play().catch(()=>{})));
-</script></body></html>
+</body>
+</html>
