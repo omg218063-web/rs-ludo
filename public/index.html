@@ -1,69 +1,207 @@
 <!DOCTYPE html><html lang="bn"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ফানি লুডু</title>
+<title>RS Ludo</title>
 <style>
-body{margin:0;background:#1b1b2f;color:#fff;font-family:sans-serif;text-align:center}
-button,input{font-size:18px;padding:10px 14px;margin:4px;border-radius:10px;border:0}
-button{background:#ffb300}button:disabled{opacity:.4}
-#c{width:100%;max-width:520px;touch-action:manipulation}
+:root{--bg1:#12002b;--bg2:#3a0066;--gold:#ffd54a}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;color:#fff;font-family:sans-serif;text-align:center;
+ background:linear-gradient(135deg,var(--bg1),var(--bg2),var(--bg1));background-size:300% 300%;animation:bg 12s ease infinite}
+@keyframes bg{50%{background-position:100% 50%}}
+#logo{font-size:30px;font-weight:900;letter-spacing:3px;padding:10px 0 2px}
+#logo b{font-size:46px;background:linear-gradient(90deg,#ffd54a,#fff,#ffb300,#ffd54a);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:sh 3s linear infinite}
+@keyframes sh{to{background-position:300% 0}}
+button,input,select,.btn{font-size:17px;padding:10px 16px;margin:4px;border-radius:14px;border:0;font-family:inherit}
+input,select{background:#ffffff26;color:#fff;text-align:center}
+select option{color:#000}
+button,.btn{background:linear-gradient(#ffd54a,#ff9800);color:#2b0050;font-weight:700;display:inline-block;transition:transform .15s}
+button:active,.btn:active{transform:scale(.92)}
+button:disabled{opacity:.35}
+.box{max-width:420px;margin:12px auto;padding:16px;background:#ffffff14;border-radius:22px}
+#pf{width:96px;height:96px;border-radius:50%;object-fit:cover;border:4px solid var(--gold);box-shadow:0 0 18px var(--gold)}
+#cards{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:6px}
+.pc{width:78px;padding:6px;border-radius:14px;background:#ffffff1a;border:2px solid var(--c);font-size:12px;transition:.3s}
+.pc img{width:46px;height:46px;border-radius:50%;object-fit:cover}
+.pc b,.pc small{display:block;overflow:hidden;white-space:nowrap}
+.pc.on{animation:glow .8s infinite alternate;background:#ffffff40}
+.pc.off{opacity:.35}
+@keyframes glow{to{box-shadow:0 0 16px var(--c);transform:translateY(-4px)}}
+#c{width:100%;max-width:520px;touch-action:manipulation;border-radius:18px;box-shadow:0 0 30px #000a}
+#dice{font-size:64px;line-height:1;height:72px}
+.spin{animation:sp .35s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pop{animation:pp .45s}
+@keyframes pp{0%{transform:scale(2.2) rotate(-120deg)}100%{transform:scale(1)}}
 </style></head><body>
-<div id="home"><h1>🎲 ফানি লুডু</h1>
+<div id="logo"><b>RS</b> LUDO</div>
+
+<div id="auth" class="box">
+<h3>অ্যাকাউন্ট</h3>
 <input id="nm" placeholder="আপনার নাম"><br>
-<button id="cr">নতুন রুম বানাও</button><br>
-<input id="cd" placeholder="রুম কোড" maxlength="4"><button id="jn">জয়েন</button></div>
+<button id="reg">✨ নতুন আইডি বানাও</button>
+<hr style="opacity:.2">
+<input id="gid" placeholder="গেম আইডি (৬ সংখ্যা)" inputmode="numeric" maxlength="6"><br>
+<button id="lg">লগইন</button>
+</div>
+
+<div id="lobby" class="box" hidden>
+<img id="pf"><h2 id="pn" style="margin:6px"></h2>
+<div>গেম আইডি: <b id="pid" style="color:var(--gold);font-size:22px"></b></div>
+<small>এই আইডি মনে রাখুন, এটা দিয়েই লগইন করবেন</small>
+<div id="pc" style="font-size:24px;margin:8px">🪙 0</div>
+<label class="btn">📷 ছবি বদলান<input id="ph" type="file" accept="image/*" hidden></label>
+<button id="bn">🎁 বোনাস</button>
+<hr style="opacity:.2">
+<select id="fee"><option value="0">ফ্রি রুম</option><option value="50">🪙 50</option><option value="100">🪙 100</option><option value="200">🪙 200</option><option value="500">🪙 500</option></select>
+<button id="cr">🎲 নতুন রুম</button><br>
+<input id="cd" placeholder="রুম কোড" maxlength="4"><button id="jn">জয়েন</button>
+</div>
+
 <div id="game" hidden>
 <div id="info"></div>
+<div id="cards"></div>
 <canvas id="c" width="600" height="600"></canvas>
+<div id="dice">🎲</div>
 <div id="msg" style="min-height:28px;font-size:18px"></div>
 <div><button id="roll">🎲 ডাইস ফেলো</button><button id="mic">🎙️ মাইক চালু করো</button></div>
-<button id="st" hidden>খেলা শুরু করো</button><button id="sh">🔗 লিংক শেয়ার</button>
+<button id="st" hidden>▶ খেলা শুরু করো</button><button id="sh">🔗 লিংক শেয়ার</button><button id="lv">🚪 বের হও</button>
 </div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
+/* ===== রং এখানে বদলান ===== */
+const T={bg1:'#12002b',bg2:'#3a0066',gold:'#ffd54a',
+ seat:['#ff3d5a','#2ee66b','#ffc400','#2e9bff'],
+ track:'#fff8e7',safe:'#b388ff',center:'#1a0033'};
+for(const k in T)if(typeof T[k]=='string')document.documentElement.style.setProperty('--'+k,T[k]);
+const C=T.seat;
+
 const s=io(),$=id=>document.getElementById(id),cv=$('c'),g=cv.getContext('2d'),U=40;
-const C=['#e53935','#43a047','#fdd835','#1e88e5'],SAFE=[0,8,13,21,26,34,39,47];
+const SAFE=[0,8,13,21,26,34,39,47],F=['🎲','⚀','⚁','⚂','⚃','⚄','⚅'];
 const PATH=[[1,6],[2,6],[3,6],[4,6],[5,6],[6,5],[6,4],[6,3],[6,2],[6,1],[6,0],[7,0],[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[9,6],[10,6],[11,6],[12,6],[13,6],[14,6],[14,7],[14,8],[13,8],[12,8],[11,8],[10,8],[9,8],[8,9],[8,10],[8,11],[8,12],[8,13],[8,14],[7,14],[6,14],[6,13],[6,12],[6,11],[6,10],[6,9],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8],[0,7],[0,6]];
 const HOME=[[[1,7],[2,7],[3,7],[4,7],[5,7]],[[7,1],[7,2],[7,3],[7,4],[7,5]],[[13,7],[12,7],[11,7],[10,7],[9,7]],[[7,13],[7,12],[7,11],[7,10],[7,9]]];
 const BASE=[[0,0],[9,0],[9,9],[0,9]];
-let S=null,mic=null;
+let S=null,ME=null,mic=null,rolling=0,pd=0,man=0,qroom=new URLSearchParams(location.search).get('room');
 const me=()=>S&&S.players.find(p=>p.id==s.id);
 const mine=()=>S&&S.phase!='lobby'&&S.players[S.turn].id==s.id;
 const legal=(pl,d)=>pl.pieces.map((p,i)=>i).filter(i=>pl.pieces[i]<0?d==6:pl.pieces[i]+d<=56);
+const show=id=>['auth','lobby','game'].forEach(x=>$(x).hidden=x!=id);
+const dflt=n=>'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" fill="#6a1b9a"/><text x="48" y="66" font-size="54" text-anchor="middle" fill="#ffd54a" font-family="sans-serif">'+((n||'?')[0])+'</text></svg>');
+const IM={};
+const img=p=>{const k=p.pic||p.name;if(!IM[k]){const i=new Image();i.src=p.pic||dflt(p.name);IM[k]=i}return IM[k]};
+if(qroom)$('cd').value=qroom;
 
-function pos(pl,i){const p=pl.pieces[i],q=pl.seat;
+/* ---------- অ্যাকাউন্ট ---------- */
+$('reg').onclick=()=>s.emit('register',$('nm').value);
+$('lg').onclick=()=>{man=1;s.emit('login',$('gid').value)};
+s.on('connect',()=>{const i=localStorage.rsid;if(i)s.emit('login',i)});
+s.on('badid',()=>{localStorage.removeItem('rsid');if(man)alert('এই আইডি পাওয়া যায়নি');man=0});
+s.on('me',u=>{
+ ME=u;localStorage.rsid=u.id;
+ $('pf').src=u.pic||dflt(u.name);$('pn').textContent=u.name;$('pid').textContent=u.id;$('pc').textContent='🪙 '+u.coins;
+ if(!S)show('lobby');
+ if(qroom){s.emit('join',qroom);qroom=null}});
+$('ph').onchange=e=>{
+ const f=e.target.files[0];if(!f)return;
+ const im=new Image();
+ im.onload=()=>{
+  const k=document.createElement('canvas');k.width=k.height=96;
+  const x=k.getContext('2d'),m=Math.min(im.width,im.height);
+  x.drawImage(im,(im.width-m)/2,(im.height-m)/2,m,m,0,0,96,96);
+  s.emit('pic',k.toDataURL('image/jpeg',.6))};
+ im.src=URL.createObjectURL(f)};
+$('bn').onclick=()=>s.emit('bonus');
+$('cr').onclick=()=>s.emit('create',+$('fee').value);
+$('jn').onclick=()=>s.emit('join',$('cd').value);
+$('lv').onclick=()=>location.href=location.pathname;
+s.on('err',t=>alert(t));
+
+/* ---------- বোর্ড (একবারই আঁকা) ---------- */
+const bd=document.createElement('canvas');bd.width=bd.height=600;
+(function(){
+ const x=bd.getContext('2d');
+ x.fillStyle=T.center;x.fillRect(0,0,600,600);
+ BASE.forEach(([a,b],i)=>{
+  x.fillStyle=C[i];x.beginPath();x.roundRect(a*U+3,b*U+3,6*U-6,6*U-6,24);x.fill();
+  x.fillStyle=T.track;x.beginPath();x.roundRect((a+1)*U,(b+1)*U,4*U,4*U,18);x.fill()});
+ const cell=(c,f)=>{x.fillStyle=f;x.beginPath();x.roundRect(c[0]*U+2,c[1]*U+2,U-4,U-4,8);x.fill()};
+ PATH.forEach((c,i)=>{
+  const st=[0,13,26,39].indexOf(i);cell(c,st>=0?C[st]:T.track);
+  if(SAFE.includes(i)&&st<0){x.fillStyle=T.safe;x.font='22px sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText('★',c[0]*U+U/2,c[1]*U+U/2+1)}});
+ HOME.forEach((h,i)=>h.forEach(c=>cell(c,C[i])));
+ [[[240,240],[240,360]],[[240,240],[360,240]],[[360,240],[360,360]],[[240,360],[360,360]]].forEach((p,i)=>{
+  x.fillStyle=C[i];x.beginPath();x.moveTo(p[0][0],p[0][1]);x.lineTo(p[1][0],p[1][1]);x.lineTo(300,300);x.fill()});
+ x.strokeStyle=T.gold;x.lineWidth=5;x.strokeRect(2,2,596,596)})();
+
+function pos(q,i,p){
  if(p<0){const b=BASE[q];return[b[0]+2+(i%2)*2,b[1]+2+(i>>1)*2]}
  if(p<=50){const c=PATH[(q*13+p)%52];return[c[0]+.5,c[1]+.5]}
  if(p<=55){const c=HOME[q][p-51];return[c[0]+.5,c[1]+.5]}
- return[7.5+(i-1.5)*.35,7.5]}
+ const f=[[6.75,7.5],[7.5,6.75],[8.25,7.5],[7.5,8.25]][q],o=(i-1.5)*.17;
+ return q%2?[f[0]+o,f[1]]:[f[0],f[1]+o]}
 
-function draw(){
- g.clearRect(0,0,600,600);
- BASE.forEach(([x,y],i)=>{g.fillStyle=C[i];g.fillRect(x*U,y*U,6*U,6*U);g.fillStyle='#fff';g.fillRect((x+1)*U,(y+1)*U,4*U,4*U)});
- g.font='20px sans-serif';g.textAlign='center';g.textBaseline='middle';
- PATH.forEach((c,i)=>{
-  const st=[0,13,26,39].indexOf(i);
-  g.fillStyle=st>=0?C[st]:'#fff';g.fillRect(c[0]*U,c[1]*U,U,U);
-  g.strokeStyle='#555';g.strokeRect(c[0]*U,c[1]*U,U,U);
-  if(SAFE.includes(i)&&st<0){g.fillStyle='#888';g.fillText('★',c[0]*U+U/2,c[1]*U+U/2)}});
- HOME.forEach((h,i)=>h.forEach(c=>{g.fillStyle=C[i];g.fillRect(c[0]*U,c[1]*U,U,U);g.strokeStyle='#555';g.strokeRect(c[0]*U,c[1]*U,U,U)}));
- g.fillStyle='#999';g.fillRect(6*U,6*U,3*U,3*U);
+/* ---------- অ্যানিমেশন লুপ ---------- */
+const DP={};
+function draw(t){
+ g.drawImage(bd,0,0);
  if(!S)return;
- const m=mine()&&S.phase=='move'?legal(me(),S.dice):[];
+ S.players.forEach(pl=>{
+  const b=BASE[pl.seat],cx=(b[0]+3)*U,cy=(b[1]+3)*U,im=img(pl);
+  g.save();g.beginPath();g.arc(cx,cy,28,0,7);g.clip();
+  if(im.complete&&im.naturalWidth)g.drawImage(im,cx-28,cy-28,56,56);
+  g.restore();
+  g.beginPath();g.arc(cx,cy,28,0,7);g.lineWidth=4;g.strokeStyle=T.gold;g.stroke()});
+ const mv=mine()&&S.phase=='move'?legal(me(),S.dice):[];
  S.players.forEach(pl=>pl.pieces.forEach((p,i)=>{
-  const [x,y]=pos(pl,i);
-  g.beginPath();g.arc(x*U,y*U,15,0,7);g.fillStyle=C[pl.seat];g.fill();
-  g.lineWidth=2;g.strokeStyle='#000';g.stroke();
-  if(pl.id==s.id&&m.includes(i)){g.beginPath();g.arc(x*U,y*U,19,0,7);g.lineWidth=4;g.strokeStyle='#fff';g.stroke()}
-  g.fillStyle='#000';g.font='bold 16px sans-serif';g.fillText(i+1,x*U,y*U);g.lineWidth=1}))}
+  const k=pl.id+i,st=DP[k]||(DP[k]={d:p,x:0,y:0,t:0,f:1});
+  if(st.d!=p){
+   if(p<0)st.d=-1;
+   else if(st.d<0)st.d=0;
+   else if(t-st.t>120){st.d+=Math.sign(p-st.d);st.t=t}}
+  const [tx,ty]=pos(pl.seat,i,st.d);
+  if(st.f){st.x=tx;st.y=ty;st.f=0}else{st.x+=(tx-st.x)*.3;st.y+=(ty-st.y)*.3}
+  const R=st.d!=p?18:(p==56?11:15),x=st.x*U,y=st.y*U;
+  g.beginPath();g.arc(x,y+3,R,0,7);g.fillStyle='#0007';g.fill();
+  const gr=g.createRadialGradient(x-4,y-5,2,x,y,R);
+  gr.addColorStop(0,'#fff');gr.addColorStop(.35,C[pl.seat]);gr.addColorStop(1,'#000b');
+  g.beginPath();g.arc(x,y,R,0,7);g.fillStyle=gr;g.fill();
+  g.lineWidth=2;g.strokeStyle='#fff';g.stroke();
+  if(pl.id==s.id&&mv.includes(i)){
+   g.beginPath();g.arc(x,y,R+4+2*Math.sin(t/150),0,7);g.lineWidth=3;g.strokeStyle=T.gold;g.stroke()}
+  g.fillStyle='#fff';g.font='bold 13px sans-serif';g.textAlign='center';g.textBaseline='middle';g.fillText(i+1,x,y)}))}
+requestAnimationFrame(function f(t){draw(t);requestAnimationFrame(f)});
 
+/* ---------- গেম UI ---------- */
 function render(){
- const d=['','⚀','⚁','⚂','⚃','⚄','⚅'][S.dice]||'';
- $('info').innerHTML='রুম: <b>'+S.code+'</b> '+d+'<br>'+S.players.map((p,i)=>'<span style="color:'+C[p.seat]+'">'+(S.phase!='lobby'&&i==S.turn?'▶ ':'')+p.name+(p.left?' (বের)':'')+'</span>').join(' | ');
+ $('info').innerHTML='রুম: <b>'+S.code+'</b> | এন্ট্রি 🪙'+S.fee+' | পট 🪙'+S.pot;
+ $('cards').innerHTML=S.players.map((p,i)=>'<div class="pc'+(S.phase!='lobby'&&i==S.turn?' on':'')+(p.left?' off':'')+'" style="--c:'+C[p.seat]+'"><img src="'+(p.pic||dflt(p.name))+'"><b>'+p.name+'</b><small>🪙'+p.coins+'</small></div>').join('');
  $('msg').textContent=S.msg;
  $('roll').disabled=!(mine()&&S.phase=='roll');
  $('st').hidden=!(S.phase=='lobby'&&S.players[0].id==s.id&&S.players.length>1);
- draw();
- if(mine()&&S.phase=='move'){const l=legal(me(),S.dice);if(l.length==1)setTimeout(()=>{if(S.phase=='move'&&mine())s.emit('move',l[0])},700)}}
+ if(mine()&&S.phase=='move'){
+  const l=legal(me(),S.dice);
+  if(l.length==1)setTimeout(()=>{if(S.phase=='move'&&mine())s.emit('move',l[0])},800)}}
+
+s.on('state',st=>{
+ S=st;show('game');
+ if(S.phase=='rolling'&&!rolling){
+  rolling=setInterval(()=>{$('dice').textContent=F[1+Math.floor(Math.random()*6)]},90);
+  $('dice').className='spin'}
+ if(S.phase!='rolling'&&rolling){clearInterval(rolling);rolling=0;$('dice').className=''}
+ if(S.dice!=pd){
+  pd=S.dice;$('dice').textContent=F[S.dice];
+  if(S.dice){void $('dice').offsetWidth;$('dice').className='pop'}}
+ render();peers()});
+$('roll').onclick=()=>s.emit('roll');
+$('st').onclick=()=>s.emit('start');
+$('sh').onclick=()=>{
+ const u=location.origin+'?room='+S.code;
+ if(navigator.share)navigator.share({title:'RS Ludo',url:u});else prompt('কপি করুন',u)};
+cv.onclick=e=>{
+ if(!S||!mine()||S.phase!='move')return;
+ const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)*600/r.width/U,y=(e.clientY-r.top)*600/r.height/U,m=me();
+ let b=-1,bd2=1.2;
+ legal(m,S.dice).forEach(i=>{const q=pos(m.seat,i,m.pieces[i]),dd=Math.hypot(q[0]-x,q[1]-y);if(dd<bd2){bd2=dd;b=i}});
+ if(b>=0)s.emit('move',b)};
 
 /* ---------- লাইভ ভয়েস (WebRTC) ---------- */
 const pcs={};
@@ -82,7 +220,6 @@ function mk(id,init){
   o.tr=pc.addTransceiver('audio',{direction:'sendrecv'});
   if(mic)o.tr.sender.replaceTrack(mic.getAudioTracks()[0])}
  return o}
-
 s.on('sig',(id,data)=>{
  const o=pcs[id]||mk(id,false);
  o.q=o.q.then(async()=>{
@@ -97,12 +234,11 @@ s.on('sig',(id,data)=>{
      s.emit('sig',id,{d:o.pc.localDescription})}
    }else if(data.c){await o.pc.addIceCandidate(data.c)}
   }catch(e){console.log(e)}})});
-
 function peers(){
  const ids=S.players.filter(p=>p.id!=s.id&&!p.left).map(p=>p.id);
  ids.forEach(id=>{if(!pcs[id]&&s.id<id)mk(id,true)});
- Object.keys(pcs).forEach(id=>{if(!ids.includes(id)){pcs[id].pc.close();delete pcs[id];const a=$('a'+id);if(a)a.remove()}})}
-
+ Object.keys(pcs).forEach(id=>{
+  if(!ids.includes(id)){pcs[id].pc.close();delete pcs[id];const a=$('a'+id);if(a)a.remove()}})}
 $('mic').onclick=async()=>{
  document.querySelectorAll('audio').forEach(a=>a.play().catch(()=>{}));
  if(!mic){
@@ -114,22 +250,4 @@ $('mic').onclick=async()=>{
  }else{
   const t=mic.getAudioTracks()[0];t.enabled=!t.enabled;
   $('mic').textContent=t.enabled?'🎙️ মাইক অন (মিউট করতে চাপুন)':'🔇 মিউট (চালু করতে চাপুন)'}};
-
-/* ---------- সংযোগ ---------- */
-s.on('state',st=>{S=st;$('home').hidden=1;$('game').hidden=0;render();peers()});
-s.on('err',t=>alert(t));
-$('cr').onclick=()=>s.emit('create',$('nm').value);
-$('jn').onclick=()=>s.emit('join',$('cd').value,$('nm').value);
-$('roll').onclick=()=>s.emit('roll');
-$('st').onclick=()=>s.emit('start');
-$('sh').onclick=()=>{const u=location.origin+'?room='+S.code;
- if(navigator.share)navigator.share({title:'ফানি লুডু',url:u});else prompt('কপি করুন',u)};
-cv.onclick=e=>{
- if(!S||!mine()||S.phase!='move')return;
- const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)*600/r.width/U,y=(e.clientY-r.top)*600/r.height/U;
- let b=-1,bd=1.2;
- legal(me(),S.dice).forEach(i=>{const q=pos(me(),i),dd=Math.hypot(q[0]-x,q[1]-y);if(dd<bd){bd=dd;b=i}});
- if(b>=0)s.emit('move',b)};
-const q=new URLSearchParams(location.search).get('room');if(q)$('cd').value=q;
-draw();
 </script></body></html>
