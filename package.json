@@ -1,9 +1,10 @@
 {
   "name": "funny-ludo",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "scripts": { "start": "node server.js" },
   "dependencies": {
     "express": "^4.19.2",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "mongodb": "^6.8.0"
   }
 }
