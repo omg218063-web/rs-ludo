@@ -242,15 +242,17 @@ $('lk').onclick=()=>{
  if(navigator.share)navigator.share({title:'RS Ludo',url:u});else prompt('কপি করুন',u)};
 $('rc').onclick=()=>s.emit('prace');
 s.on('goto',u=>location.href=u);
+ document.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>{
+ G=b.dataset.g;
  document.querySelectorAll('[data-g]').forEach(x=>x.classList.toggle('on',x==b));
  $('go').textContent='⭐ START ('+(G=='snake'?'সাপ-লুডু':'লুডু')+')'});
-$('rc').onclick=()=>location.href='/race.html';
+$('rc').onclick=()=>s.emit('prace');
+s.on('goto',u=>location.href=u);
 document.querySelectorAll('.soon').forEach(b=>b.onclick=()=>alert('ক্যারাম শীঘ্রই আসছে! 🚧'));
 document.querySelectorAll('.x').forEach(b=>b.onclick=()=>b.closest('.ov').hidden=1);
 document.querySelectorAll('.ov').forEach(o=>o.onclick=e=>{if(e.target==o)o.hidden=1});
 $('fb').onclick=()=>$('fp').hidden=0;
 $('shop').onclick=()=>{rs();$('sp').hidden=0};
-
 /* বন্ধু */
 $('ab').onclick=()=>{s.emit('addf',$('af').value);$('af').value=''};
 s.on('friends',d=>{
