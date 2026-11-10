@@ -209,5 +209,5 @@ io.on('connection',s=>{
   leaveGame();leaveP();
   const id=s.data.uid;
   if(id&&online.get(id)==s.id){online.delete(id);const u=await getU(id);if(u)presence(u)}});
-});
+});require('./race')(io,getU,putU,pu,parties);
 srv.listen(process.env.PORT||3000);
