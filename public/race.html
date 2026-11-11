@@ -161,13 +161,12 @@ function frame(t){
   px-=dt*2*pct*pct*ps.curve*.2;
   px=Math.max(-2.2,Math.min(2.2,px));
   const tg=Bk?0:(Math.abs(px)>1?top*.35:top);
-  spd+=(tg-spd)*dt*(Bk?2.5:(spd<tg?K.acc*6:1.4))}
+  spd+=(tg-spd)*dt*(Bk?2.5:(spd<tg?K.acc*2.5:1.4))}
  else if(fin){spd+=(0-spd)*dt*.8}
  pos+=spd*dt;bg-=ps.curve*pct*dt*40;
  if(started&&!fin&&pos>=trackLen){fin=1;s.emit('rfin',Math.round(t-cd));$('wt').hidden=0}
  if(started&&t-lastSend>66){s.emit('rp',{z:pos,x:px,v:spd});lastSend=t}
  for(const k in opp){const o=opp[k],est=o.tz+o.v*(t-o.tt)/1000;o.z+=(est-o.z)*.25;o.x+=(o.tx-o.x)*.25}
- /* আঁকা */
  sky();
  const base=segAt(pos),bp=(pos%SL)/SL,pp=((pos+PZ)%SL)/SL,py=ease(ps.p1.w.y,ps.p2.w.y,pp);
  let x=0,dx=-base.curve*bp,maxy=H;const dr=[];
@@ -181,7 +180,6 @@ function frame(t){
  const pw=CARW*W/2000,bob=Math.sin(t/60)*(Math.abs(px)>1?2.5:.6)*Math.min(1,pct*2);
  car(g,W/2,H*.9+bob,pw,K,(Rk-Lk)*.05*Math.min(1,pct*2),Bk);
  fx(dt);
- /* HUD */
  g.fillStyle='#0006';g.fillRect(W*.1,46,W*.8,6);
  const dot=(p,c)=>{g.fillStyle=c;g.beginPath();g.arc(W*.1+W*.8*Math.max(0,Math.min(1,p/trackLen)),49,5,0,7);g.fill()};
  for(const k in opp)dot(opp[k].z,'#fff');dot(pos,'#ffd54a');
