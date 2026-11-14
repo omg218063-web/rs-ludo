@@ -1,16 +1,46 @@
 const express=require('express'),http=require('http'),{Server}=require('socket.io'),{MongoClient}=require('mongodb');
 const app=express(),srv=http.createServer(app),io=new Server(srv);
 app.use(express.static('public'));
+process.on('unhandledRejection',e=>console.log('unhandled',e&&e.message));
+process.on('uncaughtException',e=>console.log('uncaught',e&&e.message));
 const rooms={},parties={},online=new Map(),SEATS=[0,2,1,3],SAFE=[0,8,13,21,26,34,39,47],FEES=[0,50,100,200,500],RP=[0,100,300,500,800,1200,2000,5000];
 const LAD={2:38,7:14,8:31,15:26,21:42,28:84,36:44,51:67,71:91,78:98,87:94},SNK={16:6,46:25,49:11,62:19,64:60,74:53,89:68,92:88,95:75,99:80};
-let col=null;const mem=new Map();
-if(process.env.MONGO_URL)new MongoClient(process.env.MONGO_URL).connect().then(c=>{col=c.db('rsludo').collection('users');console.log('DB ok')}).catch(e=>console.log('DB error',e.message));
+
+/* ---------- ডাটাবেস ---------- */
+const ENVS=['MONGODB_URI','MONGO_URL','MONGO_URI','DATABASE_URL'],EN=ENVS.find(k=>process.env[k]),DBU=EN?process.env[EN].trim():'',DBN=process.env.LUDO_DB_NAME||'rsludo';
+let col=null,dbErr=DBU?'সংযোগ চলছে...':'কোনো ডাটাবেস ভ্যারিয়েবল পাওয়া যায়নি (MONGODB_URI)';
+const mem=new Map();
+const hint=m=>/auth/i.test(m)?'ইউজারনেম বা পাসওয়ার্ড ভুল। পাসওয়ার্ডে বিশেষ চিহ্ন থাকলে Atlas-এ শুধু অক্ষর-সংখ্যার পাসওয়ার্ড দিন':
+ /ENOTFOUND|querySrv|ECONNREFUSED/i.test(m)?'কানেকশন লিংকের ঠিকানা ভুল, Atlas থেকে আবার কপি করুন':
+ /select|timed out|ReplicaSet|whitelist|network/i.test(m)?'Atlas-এর Network Access এ 0.0.0.0/0 (Allow from anywhere) যোগ করুন':'';
+async function dbConnect(){
+ if(!DBU)return;
+ try{
+  const c=new MongoClient(DBU,{serverSelectionTimeoutMS:10000});
+  await c.connect();col=c.db(DBN).collection('users');dbErr='';
+  console.log('DB ok');io.emit('db',{ok:true,env:true})}
+ catch(e){
+  col=null;const m=String(e&&e.message||e);
+  dbErr=m.slice(0,160)+' | '+hint(m);console.log('DB error',m);
+  setTimeout(dbConnect,30000)}}
+dbConnect();
+app.get('/status',(q,r)=>r.type('text').send(
+ 'ডাটাবেস: '+(col?'✅ সংযুক্ত':'❌ সংযুক্ত নয়')+
+ '\nভ্যারিয়েবল: '+(EN||'পাওয়া যায়নি')+
+ '\nসমস্যা: '+(dbErr||'নেই')+
+ (/[<>]/.test(DBU)?'\n⚠️ লিংকে < > চিহ্ন রয়ে গেছে: <USERNAME> আর <PASSWORD> আসল নাম-পাসওয়ার্ড দিয়ে বদলান, < > মুছে দিন':'')+
+ '\nমেমোরিতে অ্যাকাউন্ট: '+mem.size));
 const getU=async id=>col?await col.findOne({_id:id}):mem.get(id);
 const putU=async u=>{if(col)await col.replaceOne({_id:u._id},u,{upsert:true});else mem.set(u._id,u)};
+
+/* ---------- সাহায্যকারী ---------- */
 const pu=u=>({id:u._id,name:u.name,pic:u.pic||'',ring:u.ring||0,rings:u.rings||[0],coins:u.coins});
 const pi=u=>({id:u._id,name:u.name,pic:u.pic||'',ring:u.ring||0});
 const ab=(s,p)=>(s*13+p)%52;
 const legal=(pl,d)=>pl.pieces.map((p,i)=>i).filter(i=>pl.pieces[i]<0?d==6:pl.pieces[i]+d<=56);
+const done=pl=>pl.pieces.every(p=>p==56);
+const mate=(r,pl)=>r.players.find(o=>o!==pl&&o.seat%2==pl.seat%2);
+const ctl=(r,pl)=>r.team&&done(pl)?(mate(r,pl)||pl):pl;
 function next(r){let n=0;do{r.turn=(r.turn+1)%r.players.length;n++}while(r.players[r.turn].left&&n<9);r.phase='roll';r.dice=0}
 const pubP=p=>io.to('p'+p.code).emit('party',{code:p.code,host:p.host,fee:p.fee,m:p.m});
 async function sendF(uid){
@@ -21,6 +51,7 @@ async function sendF(uid){
 const presence=async u=>{for(const f of u.friends||[])sendF(f)};
 
 io.on('connection',s=>{
+ s.emit('db',{ok:!!col,env:!!DBU});
  const R=()=>rooms[s.data.code],pub=r=>io.to(r.code).emit('state',r);
  const U=async()=>s.data.uid?await getU(s.data.uid):null;
  const sendMe=async()=>{const u=await U();if(u)s.emit('me',pu(u))};
@@ -48,18 +79,25 @@ io.on('connection',s=>{
  const enter=async u=>{
   s.data.uid=u._id;online.set(u._id,s.id);
   s.emit('me',pu(u));if(!s.data.pcode)mkP(u);
+  for(const r of Object.values(rooms)){
+   const p=r.players.find(x=>x.uid==u._id&&!x.quit);
+   if(p&&r.phase!='over'){p.id=s.id;p.left=false;clearTimeout(r.gc);s.join(r.code);s.data.code=r.code;pub(r);break}}
   sendF(u._id);presence(u)};
 
  /* ---- অ্যাকাউন্ট ---- */
  s.on('register',async name=>{
   name=String(name||'').replace(/[<>&"'`]/g,'').trim().slice(0,12);
   if(!name)return s.emit('err','নাম দিন');
-  let id;do{id=String(100000+Math.floor(Math.random()*900000))}while(await getU(id));
+  let id;
+  try{do{id=String(100000+Math.floor(Math.random()*900000))}while(await getU(id))}
+  catch(e){return s.emit('err','ডাটাবেস সমস্যা, একটু পরে চেষ্টা করুন')}
   const u={_id:id,name,pic:'',coins:1000,bonus:0,ring:0,rings:[0],friends:[],reqs:[]};
-  await putU(u);enter(u)});
+  try{await putU(u)}catch(e){return s.emit('err','ডাটাবেস সমস্যা, একটু পরে চেষ্টা করুন')}
+  enter(u)});
  s.on('login',async id=>{
-  const u=await getU(String(id||'').trim());
-  if(!u)return s.emit('badid');
+  let u;
+  try{u=await getU(String(id||'').trim())}catch(e){return s.emit('badid',{keep:true})}
+  if(!u)return s.emit('badid',{keep:!!DBU&&!col});
   enter(u)});
  s.on('pic',async d=>{
   const u=await U();
@@ -116,22 +154,23 @@ io.on('connection',s=>{
   if(!p||!FEES.includes(f)||!p.m.length||p.host!=s.data.uid)return;
   p.fee=f;pubP(p)});
 
- /* ---- পার্টি থেকে গেম শুরু (লুডু / সাপ-লুডু) ---- */
+ /* ---- পার্টি থেকে গেম শুরু (লুডু / টিম লুডু / সাপ-লুডু) ---- */
  s.on('pstart',async g=>{
   const p=parties[s.data.pcode];
   if(!p||p.host!=s.data.uid||s.data.code)return;
   if(p.m.length<2)return s.emit('err','কমপক্ষে ২ জন লাগবে');
+  if(g=='team'&&p.m.length!=4)return s.emit('err','টিম মোডে ঠিক ৪ জন লাগবে');
   const us=[];
   for(const m of p.m){
    const x=await getU(m.uid);
    if(!x||x.coins<p.fee)return s.emit('err',m.name+' এর কয়েন কম');
    us.push(x)}
   const c=Math.random().toString(36).slice(2,6).toUpperCase();
-  const r=rooms[c]={code:c,game:g=='snake'?'snake':'ludo',fee:p.fee,pot:p.fee*us.length,players:[],turn:0,dice:0,phase:'roll',msg:'',winner:null};
+  const r=rooms[c]={code:c,game:g=='snake'?'snake':'ludo',team:g=='team',fee:p.fee,pot:p.fee*us.length,players:[],turn:0,dice:0,phase:'roll',msg:'',winner:null};
   for(let k=0;k<us.length;k++){
    const x=us[k],m=p.m[k];
    x.coins-=p.fee;await putU(x);
-   r.players.push({id:m.sid,uid:x._id,...pi(x),coins:x.coins,seat:SEATS[k],pieces:[-1,-1,-1,-1],pos:1});
+   r.players.push({...pi(x),id:m.sid,uid:x._id,coins:x.coins,seat:SEATS[k],pieces:[-1,-1,-1,-1],pos:1});
    const sk=io.sockets.sockets.get(m.sid);
    if(sk){sk.join(c);sk.data.code=c;sk.emit('me',pu(x))}}
   r.msg='খেলা শুরু! '+r.players[0].name+' আগে ফেলুক';pub(r)});
@@ -144,19 +183,21 @@ io.on('connection',s=>{
   if(ok)t.emit('sig',s.id,data)});
 
  /* ---- খেলা ---- */
- const payout=async(r,pl)=>{
+ const payout=async(r,list)=>{
   if(!r.pot)return;
-  const u=await getU(pl.uid);if(!u)return;
-  u.coins+=r.pot;await putU(u);pl.coins=u.coins;
-  r.msg='🏆 '+pl.name+' জিতেছে! 🪙+'+r.pot;
-  io.to(pl.id).emit('me',pu(u));pub(r)};
+  const each=Math.floor(r.pot/list.length);
+  for(const pl of list){
+   const u=await getU(pl.uid);if(!u)continue;
+   u.coins+=each;await putU(u);pl.coins=u.coins;
+   io.to(pl.id).emit('me',pu(u))}
+  r.msg='🏆 '+r.winner+' জিতেছে! 🪙+'+each+(list.length>1?' (প্রত্যেকে)':'');pub(r)};
  const snk=(r,pl,d)=>{
   let m=pl.pos+d,t='';
   if(m>100){m=pl.pos;t=' (১০০ এর বেশি, চাল নেই)'}
   else if(LAD[m]){m=LAD[m];t=' 🪜 মই!'}
   else if(SNK[m]){m=SNK[m];t=' 🐍 সাপে কামড়!'}
   pl.pos=m;
-  if(m==100){r.phase='over';r.winner=pl.name;r.msg='🏆 '+pl.name+' জিতেছে!';pub(r);payout(r,pl);return}
+  if(m==100){r.phase='over';r.winner=pl.name;r.msg='🏆 '+pl.name+' জিতেছে!';pub(r);payout(r,[pl]);return}
   r.msg=pl.name+' '+d+' ফেলল'+t;
   if(d==6){r.phase='roll';r.dice=0;r.msg+=' — আবার ফেলবে'}
   else{r.phase='wait';
@@ -164,44 +205,52 @@ io.on('connection',s=>{
   pub(r)};
  s.on('roll',()=>{
   const r=R();
-  if(!r||r.phase!='roll'||r.players[r.turn].id!=s.id)return;
+  if(!r||r.phase!='roll'||r.players[r.turn].uid!=s.data.uid)return;
   const pl=r.players[r.turn];
   r.phase='rolling';r.msg=pl.name+' ডাইস ফেলছে...';pub(r);
   setTimeout(()=>{
    if(!rooms[r.code]||r.phase!='rolling')return;
    const d=1+Math.floor(Math.random()*6);r.dice=d;
    if(r.game=='snake')return snk(r,pl,d);
-   if(legal(pl,d).length){r.phase='move';r.msg=pl.name+' '+d+' ফেলল'+(d==6?' 🔥 ছক্কা!':'')}
+   const lg=pl.left?[]:legal(ctl(r,pl),d);
+   if(lg.length){r.phase='move';r.msg=pl.name+' '+d+' ফেলল'+(d==6?' 🔥 ছক্কা!':'')}
    else{r.phase='wait';r.msg=pl.name+' '+d+' ফেলল, চাল নেই 😅';
     setTimeout(()=>{if(rooms[r.code]&&r.phase=='wait'){next(r);r.msg=r.players[r.turn].name+' এর পালা';pub(r)}},1500)}
    pub(r)},800)});
  s.on('move',i=>{
   const r=R();
-  if(!r||r.game!='ludo'||r.phase!='move'||r.players[r.turn].id!=s.id)return;
-  const pl=r.players[r.turn],d=r.dice;
-  if(!legal(pl,d).includes(i))return;
-  const np=pl.pieces[i]<0?0:pl.pieces[i]+d;pl.pieces[i]=np;let cap=null;
-  if(np<=50&&!SAFE.includes(ab(pl.seat,np)))
-   r.players.forEach(o=>{if(o!==pl)o.pieces.forEach((q,k)=>{
-    if(q>=0&&q<=50&&ab(o.seat,q)==ab(pl.seat,np)){o.pieces[k]=-1;cap=o.name}})});
-  if(pl.pieces.every(p=>p==56)){r.phase='over';r.winner=pl.name;r.msg='🏆 '+pl.name+' জিতেছে!';pub(r);payout(r,pl);return}
-  else if(d==6||cap){r.phase='roll';r.dice=0;
+  if(!r||r.game!='ludo'||r.phase!='move'||r.players[r.turn].uid!=s.data.uid)return;
+  const pl=r.players[r.turn],d=r.dice,tp=ctl(r,pl);
+  if(!legal(tp,d).includes(i))return;
+  const np=tp.pieces[i]<0?0:tp.pieces[i]+d;tp.pieces[i]=np;let cap=null;
+  if(np<=50&&!SAFE.includes(ab(tp.seat,np)))
+   r.players.forEach(o=>{
+    if(o===tp||(r.team&&o.seat%2==tp.seat%2))return;
+    o.pieces.forEach((q,k)=>{if(q>=0&&q<=50&&ab(o.seat,q)==ab(tp.seat,np)){o.pieces[k]=-1;cap=o.name}})});
+  const grp=r.team?r.players.filter(o=>o.seat%2==tp.seat%2):[tp];
+  if(grp.every(o=>done(o))){
+   r.phase='over';r.winner=grp.map(o=>o.name).join(' + ');
+   r.msg='🏆 '+r.winner+' জিতেছে!';pub(r);payout(r,grp);return}
+  if(d==6||cap){r.phase='roll';r.dice=0;
    r.msg=cap?'😂 '+cap+' এর গুটি কাটা পড়ল! '+pl.name+' আবার ফেলবে':pl.name+' আবার ফেলবে'}
   else{next(r);r.msg=r.players[r.turn].name+' এর পালা'}
   pub(r)});
 
- const leaveGame=()=>{
+ const leaveGame=vol=>{
   const r=R();if(!r)return;
   const k=r.players.findIndex(p=>p.id==s.id);
   s.leave(r.code);delete s.data.code;
   if(k<0)return;
-  r.players[k].left=true;
-  if(r.players.every(p=>p.left)){delete rooms[r.code];return}
-  if(r.phase!='over'&&r.turn==k)next(r);
-  r.msg='একজন বের হয়ে গেছে';pub(r)};
- s.on('lgame',leaveGame);
+  const p=r.players[k];p.left=true;if(vol)p.quit=true;
+  if(r.players.every(x=>x.left)){
+   if(r.players.every(x=>x.quit))delete rooms[r.code];
+   else r.gc=setTimeout(()=>{if(rooms[r.code]&&r.players.every(x=>x.left))delete rooms[r.code]},120000);
+   return}
+  if(['roll','move'].includes(r.phase)&&r.turn==k)next(r);
+  r.msg=p.name+(vol?' বের হয়েছে':' ডিসকানেক্ট হয়েছে');pub(r)};
+ s.on('lgame',()=>leaveGame(1));
  s.on('disconnect',async()=>{
-  leaveGame();leaveP();
+  leaveGame(0);leaveP();
   const id=s.data.uid;
   if(id&&online.get(id)==s.id){online.delete(id);const u=await getU(id);if(u)presence(u)}});
 });
